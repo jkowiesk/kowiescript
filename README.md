@@ -1,92 +1,267 @@
-# ks
+# TKOM - Projekt wstępny
 
+**Autor**: Jakub Kowieski
 
+**Przydział**: typowanie dynamiczne silne, zmienne domyślnie mutowalne przekazywanie przez kopię
 
-## Getting started
+# Funkcjonalności
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- Obsługa zmiennych, stałych, pętli, instrukcji warunkowych, funkcji, operacji arytmetycznych i logicznych
+- Operacje na ciągach znaków
+- Sam język będzie typowany dynamicznie silnie, a jego zmienne będą domyślnie mutowalne i przekazywane przez kopię
+- posiada niestandardowy typ danych **Range**
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+**Range** - reprezentuje zakres wartości, może służyć jako iterator.
 
-## Add your files
+# Dopuszczalne konstrukcje językowe
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+```jsx
+const b = 3
 
+const files = ["test1", "test2"]
+
+let a = 5
+a = a + 1
+
+if a != 5  {
+	print("A is not a five")
+}
+
+for file in files {
+	file
+}
+
+for i in Range(1, 10) {
+	print(i)
+}
+
+let how = "well"
+
+match how {
+	case "bad" => print("Not good at all :(")
+	case "well" => print("Great success !!!"),
+	default => print("What ???")
+}
 ```
-cd existing_repo
-git remote add origin https://gitlab-stud.elka.pw.edu.pl/TKOM_23L_WW/Jakub_Kowieski/ks.git
-git branch -M main
-git push -uf origin main
+
+# Semantyka
+
+- **let** - deklaracja zmiennej
+- **const** - deklaracja wartości stałej
+- **if** - instrukcja warunkowa wykonuje instrukcje zależnie od warunku logicznego,
+- **for** - pętla wykonuje iteracje po danym obiekcie
+- **fn** - funkcja wykonuje określony blok kodu
+- **match** - patter matching
+- [**+**, -, **/**, __*__, **%**] - operacje arytmetyczne
+- [**and**, **or**, **not**, **<**, **≤**, **≥**, **>**, **==**, **≠**] - operacje logiczne
+
+# Składnia (EBNF)
+
+```ebnf
+program               = { statement };
+
+statement             = variable_declaration
+                      | constant_declaration
+                      | assignment_statement
+                      | loop_statement
+                      | conditional_statement
+                      | function_declaration
+                      | pattern_match_stmt;
+
+variable_declaration  = "let" identifier "=" expression;
+constant_declaration  = "const" identifier "=" expression;
+
+assignment_statement  = identifier "=" expression;
+
+loop_statement        = "for" identifier "in" iterator_expression "{" { statement } "}";
+
+conditional_statement = "if" expression "{" { statement } "}";
+
+function_declaration  = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
+
+pattern_match_stmt    = "match" identifier "{" { case_statement } "}";
+case_statement        = "case" expression "=>" statement;
+default_statement     = "default" "=>" statement;
+
+parameter_list        = identifier { "," identifier };
+
+logical_operator      = "and"
+                      | "or"
+                      | "<"
+                      | "<="
+                      | ">"
+                      | ">="
+                      | "=="
+                      | "!=";
+
+pre_logical_operator  = "!";
+
+iterator_expression   = range | vector | identifier;
+
+expression            = simple_expression [ logical_operator simple_expression ];
+
+simple_expression     = term { arithmetic_operator term };
+
+term                  = factor { arithmetic_operator factor };
+
+factor                = numeric_literal
+                      | string_literal
+                      | identifier
+                      | vector
+                      | "(" expression ")"
+                      | pre_logical_operator expression;
+
+vector                = "[" [ expression { "," expression } ] "]";
+
+numeric_literal       = natural_number;
+
+string_literal        = '"' character { character } '"';
+
+identifier            = letter { letter | digit | "_" };
+
+arithmetic_operator   = "+"
+                      | "-"
+                      | "*"
+                      | "/"
+                      | "%";
+
+natural_number        = digit_without_zero { digit };
+character             = letter | digit | " ";
+
+letter                = [a-zA-Z];
+
+digit                 = "0" | digit_without_zero;
+
+digit_without_zero    = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 ```
 
-## Integrate with your tools
+# Format plików
 
-- [ ] [Set up project integrations](https://gitlab-stud.elka.pw.edu.pl/TKOM_23L_WW/Jakub_Kowieski/ks/-/settings/integrations)
+- \*.ks - format plików
 
-## Collaborate with your team
+Wymagania funkcjonalne
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+# Analiza wymagań niefunkcjonalnych
 
-## Test and Deploy
+- Łatwość nauki - powinien być wystarczająco łatwy do zrozumienia by osoby przychodzące z innych popularnych języków mogliby szybko się zaadoptować
+- •Wydajność - język powinien być wystarczająco szybki, aby umożliwić wydajne przetwarzanie dużej ilości danych
 
-Use the built-in continuous integration in GitLab.
+# Typy danych
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Proste:
 
-***
+- int
+- bool
+- float
 
-# Editing this README
+Złożone:
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- **String**
+- **Range**
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+# Obsługa błędów
 
-## Name
-Choose a self-explaining name for your project.
+**Błedy**
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+1. **Syntax error**
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```jsx
+if x > 0 {
+	print("Bigger than 0")
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+_Komunikat_:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+Syntax error at line 2: missing closing brace '{'
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+1. **Division by zero**
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```jsx
+let x = 2 / 0;
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+_Komunikat_:
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```bash
+Division by zero at line 1: division by zero is not allowed
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+2. **Unknown identifier**
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```jsx
+const a = b + 9;
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+_Komunikat_:
 
-## License
-For open source projects, say how it is licensed.
+```bash
+Unknown identifier error at line 1: identifier 'b' not defined
+```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+3. **Variable redeclaration**
+
+```jsx
+let a = 5;
+let a = 1;
+```
+
+_Komunikat_:
+
+```bash
+Variable redeclaration ****at line 2: variable ‘a’ is already declerated
+```
+
+4. **Type mismatch**
+
+```jsx
+let x = "hello";
+let z = x + 5;
+```
+
+_Komunikat:_
+
+```bash
+Type mismatch at line 2: the types aren't the same
+```
+
+# Sposób uruchomienia
+
+1. Napisać kod programu w pliku o rozszerzeniu \*_.ks_
+2. Uruchumienie skompilowanego interpretera za pomocą komendy:
+
+```bash
+./ks plik.ks
+```
+
+3. Wejście podczas wykonwyania obsługiwany przez **stdin,** wynik zostanie przesłany do **stdout** (wyświetli się na terminalu)
+
+**Przykładowe uruchomienie pliku** **\*\*\*\***plik.ks**\*\*\*\***
+
+```jsx
+fn sum(x, y) {
+    return x + y
+}
+
+let a = input()
+let b = input()
+print(sum(a, b))
+```
+
+**Wejście**
+
+```bash
+1
+2
+```
+
+**Wyjście**
+
+```bash
+3
+```
+
+# Opis sposobu testowania
+
+Język będzie testowany używając testów jednostkowych. w każdym pliku np. pliku zawierający Lexer będzie się znajdywał blok testów jednostkowych dla modułu.
