@@ -170,7 +170,7 @@ if x > 0 {
 	print("Bigger than 0")
 ```
 
-_Komunikat_:
+_Komunikat_
 
 ```bash
 Syntax error at line 2: missing closing brace '{'
@@ -182,7 +182,7 @@ Syntax error at line 2: missing closing brace '{'
 let x = 2 / 0;
 ```
 
-_Komunikat_:
+_Komunikat_
 
 ```bash
 Division by zero at line 1: division by zero is not allowed
@@ -194,7 +194,7 @@ Division by zero at line 1: division by zero is not allowed
 const a = b + 9;
 ```
 
-_Komunikat_:
+_Komunikat_
 
 ```bash
 Unknown identifier error at line 1: identifier 'b' not defined
@@ -207,7 +207,7 @@ let a = 5;
 let a = 1;
 ```
 
-_Komunikat_:
+_Komunikat_
 
 ```bash
 Variable redeclaration ****at line 2: variable ‘a’ is already declerated
@@ -220,7 +220,7 @@ let x = "hello";
 let z = x + 5;
 ```
 
-_Komunikat:_
+_Komunikat_
 
 ```bash
 Type mismatch at line 2: the types aren't the same
@@ -237,7 +237,7 @@ Type mismatch at line 2: the types aren't the same
 
 3. Wejście podczas wykonwyania obsługiwany przez **stdin,** wynik zostanie przesłany do **stdout** (wyświetli się na terminalu)
 
-**Przykładowe uruchomienie pliku** **\*\*\*\***plik.ks**\*\*\*\***
+**Przykładowe uruchomienie pliku** _plik.ks_
 
 ```jsx
 fn sum(x, y) {
