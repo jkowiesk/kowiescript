@@ -1,0 +1,99 @@
+program               = { statement };
+
+statement             = variable_declaration
+                      | constant_declaration
+                      | assignment_statement
+                      | loop_statement
+                      | conditional_statement
+                      | function_declaration
+                      | pattern_match_stmt
+                      | return_statement;
+
+
+variable_declaration  = "let" identifier "=" expression;
+constant_declaration  = "const" identifier "=" expression;
+assignment_statement  = identifier "=" expression;
+loop_statement        = "for" identifier "in" iterator_expression "{" { statement | loop_substatment } "}";
+conditional_statement = "if" expression "{" { statement } "}" [ "else" "{" { statement } "}" ];
+function_declaration  = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
+pattern_match_stmt    = "match" identifier "{" { when_substatement } default_substatement "}";
+return_statement      = "ret" expression;
+loop_substatment      = "end"
+                      | "next"
+
+when_substatement     = "when" match_expression "then" "{" { statement } "}";
+default_substatement  = "default" "{" { statement } "}";
+
+iterator_expression   = vector | identifier | range_expression | function_call;
+range_expression      = range_factor "to" range_factor;
+range_factor          = natural_number | identifier;
+function_call         = identifier "(" [ parameter_list ] ")";
+parameter_list        = identifier { "," identifier };
+
+match_expression      = expression { "either" expression };
+
+expression            = conjuction { "or" conjuction };
+conjuction            = type_conversion { "and" type_conversion };
+type_conversion       = inversion [ cast_operator cast_type ];
+inversion             = ["!"] relation_expression;
+relation_expression   = simple_expression [relational_operator, simple_expression];
+simple_expression     = term { lower_arithmetic term };
+term                  = factor { higher_arithmetic factor };
+factor                = numeric_literal
+                      | string_literal
+                      | identifier
+                      | vector
+                      | function_call
+                      | vector_access
+                      | logic_literal
+                      | "(" expression ")";
+
+
+vector_access         = identifier "[" expression "]";
+
+cast_operator         = "as";
+
+logic_literal         = "true" | "false";
+
+cast_type             = "int"
+                      | "float"
+                      | "bool"
+                      | "string";
+
+lower_arithmetic      = "+"
+                      | "-";
+
+higher_arithmetic     = "*"
+                      | "/"
+                      | "%";
+
+relational_operator   = "<"
+                      | "<="
+                      | ">"
+                      | ">="
+                      | "=="
+                      | "!=";
+
+vector                = "[" [ expression { "," expression } ] "]";
+
+numeric_literal       =  intager_number
+                      |  real_number;
+
+string_literal        = '"' character { character } '"';
+
+identifier            = letter { letter | digit | "_" };
+
+real_number           = intager_literal "." natural_number;
+
+intager_number        = ["-"] natural_number;
+
+natural_number        = (digit_without_zero { digit })
+                      | "0";
+
+character             = letter | digit | " " | " " | "." | "," | "!" | "?" | ":" | "-" | "_" | "/" | "+" | "=";
+
+digit                 = "0" | digit_without_zero;
+
+letter                = [a-zA-Z];
+
+digit_without_zero    = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
