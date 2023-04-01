@@ -6,52 +6,56 @@ statement             = variable_declaration
                       | loop_statement
                       | conditional_statement
                       | function_declaration
-                      | pattern_match_stmt
-                      | return_statement;
-
+                      | pattern_match_stmt;
 
 variable_declaration  = "let" identifier "=" expression;
 constant_declaration  = "const" identifier "=" expression;
 assignment_statement  = identifier "=" expression;
 loop_statement        = "for" identifier "in" iterator_expression "{" { statement | loop_substatment } "}";
 conditional_statement = "if" expression "{" { statement } "}" [ "else" "{" { statement } "}" ];
-function_declaration  = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
+function_declaration  = "fn" identifier "(" [ parameter_list ] ")" "{" { statement | return_statement } "}";
 pattern_match_stmt    = "match" identifier "{" { when_substatement } default_substatement "}";
-return_statement      = "ret" expression;
-loop_substatment      = "end"
-                      | "next"
 
 when_substatement     = "when" match_expression "then" "{" { statement } "}";
 default_substatement  = "default" "{" { statement } "}";
 
+return_statement      = "ret" expression;
+loop_substatment      = "end"
+                      | "next"
+
+
 iterator_expression   = vector | identifier | range_expression | function_call;
 range_expression      = range_factor "to" range_factor;
-range_factor          = natural_number | identifier;
-function_call         = identifier "(" [ parameter_list ] ")";
-parameter_list        = identifier { "," identifier };
-
 match_expression      = expression { "either" expression };
 
 expression            = conjuction { "or" conjuction };
-conjuction            = type_conversion { "and" type_conversion };
-type_conversion       = inversion [ cast_operator cast_type ];
-inversion             = ["!"] relation_expression;
+conjuction            = relation_expression { "and" relation_expression };
 relation_expression   = simple_expression [relational_operator, simple_expression];
 simple_expression     = term { lower_arithmetic term };
-term                  = factor { higher_arithmetic factor };
-factor                = numeric_literal
-                      | string_literal
+term                  = type_conversion { higher_arithmetic type_conversion };
+type_conversion       = inversion [ cast_operator cast_type ];
+inversion             = ["!"] factor;
+
+
+factor                = literal
                       | identifier
                       | vector
                       | function_call
                       | vector_access
-                      | logic_literal
                       | "(" expression ")";
 
+function_call         = identifier "(" [ parameter_list ] ")";
+parameter_list        = identifier { "," identifier };
+
+range_factor          = natural_number | identifier;
 
 vector_access         = identifier "[" expression "]";
 
 cast_operator         = "as";
+
+literal               = numeric_literal
+                      | string_literal
+                      | logic_literal;
 
 logic_literal         = "true" | "false";
 

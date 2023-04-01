@@ -16,8 +16,8 @@
 
 ```jsx
 fn test() {
-	print("test")
-	ret 2;
+  print("test")
+  ret 2;
 }
 
 const b = 3
@@ -28,22 +28,22 @@ let a = test()
 a = a + 1
 
 if a != 5  {
-	print("'a' is not a five")
+  print("'a' is not a five")
 }
 
 for file in files {
 	// do sth with file
-	if (file == "end") {
-		end
-	}
+  if (file == "end") {
+  	end
+  }
 
-	if (file == "skip") {
-		next
-	}
+  if (file == "skip") {
+  	next
+  }
 }
 
 for i in 1 to 10 {
-	print(i)
+  print(i)
 
 }
 
@@ -87,15 +87,15 @@ Pattern Matching
 ```jsx
 let how = "well"
 match how {
-	when "bad" either "awfull" then {
-		print("Not good at all :(")
-	}
-	when "well" then {
-		print("Great success !!!")
-	}
-	default {
-		print("What ???")
-	}
+  when "bad" either "awfull" then {
+  	print("Not good at all :(")
+  }
+  when "well" then {
+  	print("Great success !!!")
+  }
+  default {
+  	print("What ???")
+  }
 }
 ```
 
@@ -103,13 +103,13 @@ match how {
 
 ```jsx
 fn starts_with_vowel(word) {
-	const first_leteter = word[0]
+  const first_leteter = word[0]
   for vowel in ["a", "e", "i", "o", "u"] {
-			if first_letter == vowel {
-				ret true
-			}
-	}
-	ret false
+  		if first_letter == vowel {
+  			ret true
+  		}
+  }
+  ret false
 }
 
 let words = ["apple", "cat", "dog", "egg", "fish", "sheep"]
@@ -130,10 +130,10 @@ print(vowel_words)
 - **ret** - zwracana wartość z funkcji
 - **const** - deklaracja wartości stałej
 - **if** - instrukcja warunkowa wykonuje instrukcje zależnie od warunku logicznego,
-- **for -** pętla wykonuje iteracje po danym obiekcie
-- **fn**- funkcja wykonuje określony blok kodu
+- **for** - pętla wykonuje iteracje po danym obiekcie
+- **fn** - funkcja wykonuje określony blok kodu
 - **match** - patter matching
-- [**+**, -, **/**, *****, **%**] **-** operacje arytmetyczne
+- [**+**, **-**, **/**, __*__, **%**] **-** operacje arytmetyczne
 - [**and**, **or**, **not**, **<**, **≤**, **≥**, **>**, **==**, **≠**] - operacje logiczne
 - **end** - natychmiastowe zakończenie pętli
 - **next** - przekazanie sterowanie do następnej iteracji
@@ -144,7 +144,7 @@ W język będzie kilka funkcji wbudowanych:
 
 **funkcje I/O**
 
-- input - do wczytywania danych z **stdin** **\*\***\*\*\*\***\*\***\*\*\*\***\*\***\*\*\*\***\*\***
+- input - do wczytywania danych z **stdin**
 - print - do wypisania danych do **stdout** (na koniec dodany będzie znak nowej linii)
 
 **funkcje vectorów**:
@@ -154,7 +154,14 @@ W język będzie kilka funkcji wbudowanych:
 
 # Rzutowanie
 
-W języku jest możliwe rzutowanie prostych typów i stringa
+W języku jest możliwe rzutowanie prostych typów i stringa za pomocą operatora "as":
+
+```jsx
+let a = 5
+let b = a as string
+let c = a as float
+let d = a as bool
+```
 
 # Komentarze
 
@@ -171,50 +178,56 @@ statement             = variable_declaration
                       | loop_statement
                       | conditional_statement
                       | function_declaration
-                      | pattern_match_stmt
-                      | return_statement;
+                      | pattern_match_stmt;
 
 variable_declaration  = "let" identifier "=" expression;
 constant_declaration  = "const" identifier "=" expression;
 assignment_statement  = identifier "=" expression;
 loop_statement        = "for" identifier "in" iterator_expression "{" { statement | loop_substatment } "}";
 conditional_statement = "if" expression "{" { statement } "}" [ "else" "{" { statement } "}" ];
-function_declaration  = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
+function_declaration  = "fn" identifier "(" [ parameter_list ] ")" "{" { statement | return_statement } "}";
 pattern_match_stmt    = "match" identifier "{" { when_substatement } default_substatement "}";
-return_statement      = "ret" expression;
-loop_substatment      = "end"
-                      | "next"
 
 when_substatement     = "when" match_expression "then" "{" { statement } "}";
 default_substatement  = "default" "{" { statement } "}";
 
+return_statement      = "ret" expression;
+loop_substatment      = "end"
+                      | "next"
+
+
 iterator_expression   = vector | identifier | range_expression | function_call;
 range_expression      = range_factor "to" range_factor;
-range_factor          = natural_number | identifier;
-function_call         = identifier "(" [ parameter_list ] ")";
-parameter_list        = identifier { "," identifier };
-
 match_expression      = expression { "either" expression };
 
 expression            = conjuction { "or" conjuction };
-conjuction            = type_conversion { "and" type_conversion };
-type_conversion       = inversion [ cast_operator cast_type ];
-inversion             = ["!"] relation_expression;
+conjuction            = relation_expression { "and" relation_expression };
 relation_expression   = simple_expression [relational_operator, simple_expression];
 simple_expression     = term { lower_arithmetic term };
-term                  = factor { higher_arithmetic factor };
-factor                = numeric_literal
-                      | string_literal
+term                  = type_conversion { higher_arithmetic type_conversion };
+type_conversion       = inversion [ cast_operator cast_type ];
+inversion             = ["!"] factor;
+
+
+factor                = literal
                       | identifier
                       | vector
                       | function_call
                       | vector_access
-                      | logic_literal
                       | "(" expression ")";
+
+function_call         = identifier "(" [ parameter_list ] ")";
+parameter_list        = identifier { "," identifier };
+
+range_factor          = natural_number | identifier;
 
 vector_access         = identifier "[" expression "]";
 
 cast_operator         = "as";
+
+literal               = numeric_literal
+                      | string_literal
+                      | logic_literal;
 
 logic_literal         = "true" | "false";
 
@@ -288,15 +301,15 @@ Złożone:
 
 Błedy wyświetlane będą użytkownikowi w formacie**:**
 
-_<Typ błędu> <w jakiej lini> <wyjaśnienie>_
+_<Typ błędu> \<w jakiej lini> <wyjaśnienie>_
 
-**Błedy:**
+## **Błedy:**
 
 1. **Syntax error**
 
 ```jsx
 if x > 0 {
-	print("Bigger than 0")
+  print("Bigger than 0")
 ```
 
 _Komunikat_:
@@ -339,7 +352,7 @@ let a = 1;
 _Komunikat_:
 
 ```bash
-Variable redeclaration ****at line 2: variable ‘a’ is already declerated
+Variable redeclaration at line 2: variable ‘a’ is already declerated
 ```
 
 5. **Type mismatch**
@@ -379,7 +392,7 @@ Impossible casting at line 2: type 'string' can't be casted to 'int'
 
 3. Wejście podczas wykonwyania obsługiwany przez **stdin,** wynik zostanie przesłany do **stdout** (wyświetli się na terminale)
 
-**Przykładowe uruchomienie pliku** **\*\*\*\***plik.ks**\*\*\*\***
+**Przykładowe uruchomienie pliku** _plik.ks_
 
 ```jsx
 fn sum(x, y) {
@@ -416,4 +429,4 @@ print(sum(a, b))
 - **Lexer** - do przetestowania poprawnośći działania analizatora leksykalnego, użyję testów jednostkowych, które pozwalają sprawdzić, czy na podstawie określonego pliku wejściowego lekser zwraca oczekiwaną listę tokenów, albo zgłosi błąd.
 - **Parser** - w przypadku analizatora składniowego, też użyję testów jednostkowych, które służą do weryfikacji, czy parser tworzy oczekiwane drzewo rozbioru składniowego na podstawie strumienia tokenów, lub tak jak lexer, zgłosi błąd.
 
-Poza tym użyję także testów integracyjnych, do testów między lekserem a parserem, czyli sprawdzić, czy parser poprawnie buduje drzewo rozbioru na podstawie pliku wejściowego.
+Poza tym użyję także testów integracyjnych, do sprawdzenia połączenia między lekserem a parserem, czy parser poprawnie buduje drzewo rozbioru na podstawie pliku wejściowego.
