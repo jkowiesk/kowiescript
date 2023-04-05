@@ -9,7 +9,7 @@ pub enum Input {
 }
 
 // all whitespace characters in utf-8 encoding
-const WHITESPACES: [u8; 7] = [32, 9, 10, 11, 12, 13, 160];
+pub const WHITESPACES: [u8; 7] = [32, 9, 10, 11, 12, 13, 160];
 
 pub struct ChrIterator<'a> {
     buf: Box<dyn BufRead + 'a>,
@@ -38,9 +38,6 @@ impl Iterator for ChrIterator<'_> {
             Ok(0) => None,
             Ok(_) => {
                 let first_byte = buf[0];
-                if (WHITESPACES.contains(&first_byte) && self.skip_whitespace) {
-                    return self.next();
-                }
                 let width = if first_byte & 0x80 == 0x00 {
                     1
                 } else if first_byte & 0xE0 == 0xC0 {
@@ -94,9 +91,19 @@ mod tests {
     }
 
     #[test]
+    fn test_icons_input() {
+        let string = String::from("🔥⭐🌂");
+        let mut chr_iter = ChrIterator::new(Input::String(string)).unwrap();
+
+        assert_eq!(chr_iter.next(), Some('🔥'));
+        assert_eq!(chr_iter.next(), Some('⭐'));
+        assert_eq!(chr_iter.next(), Some('🌂'));
+    }
+
+    #[test]
     fn test_file_input() {
         let mut chr_iter =
-            ChrIterator::new(Input::File("src/data/test_file.ks".to_string())).unwrap();
+            ChrIterator::new(Input::File("src/tests/data/test_file.ks".to_string())).unwrap();
 
         assert_eq!(chr_iter.next(), Some('ą'));
         assert_eq!(chr_iter.next(), Some('ć'));
