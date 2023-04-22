@@ -1,5 +1,6 @@
-// simple io handler for kowie script
+// simple io handler for kowiesscript
 
+use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Cursor, Read, Result};
 use std::iter::Peekable;
@@ -9,12 +10,12 @@ pub enum Input {
 }
 
 // all whitespace characters in utf-8 encoding
-pub const WHITESPACES: [u8; 7] = [32, 9, 10, 11, 12, 13, 160];
+pub const WHITESPACES: [u8; 6] = [32, 9, 11, 12, 13, 160];
+
 
 pub struct ChrIterator<'a> {
     buf: Box<dyn BufRead + 'a>,
     pub curr: Option<String>,
-    pub skip_whitespace: bool,
 }
 
 impl<'a> ChrIterator<'a> {
@@ -23,7 +24,6 @@ impl<'a> ChrIterator<'a> {
         Ok(ChrIterator {
             buf,
             curr: None,
-            skip_whitespace: true,
         }
         .peekable())
     }
@@ -80,6 +80,21 @@ pub fn read_input(input: Input) -> Result<Box<dyn BufRead>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_escape_characters() {
+        let mut chr_iter =
+            ChrIterator::new(Input::File("src/tests/data/escape_characters.ks".to_string())).unwrap();
+
+        assert_eq!(chr_iter.next(), Some('"'));
+        assert_eq!(chr_iter.next(), Some('#'));
+        assert_eq!(chr_iter.next(), Some('\n'));
+
+        assert_eq!(chr_iter.next(), Some(' '));
+
+        assert_eq!(chr_iter.next(), Some('#'));
+        assert_eq!(chr_iter.next(), Some('#'));
+    }
 
     #[test]
     fn test_string_input() {

@@ -11,6 +11,7 @@
 - Operacje na ciągach znaków
 - Sam język będzie typowany dynamicznie silnie, a jego zmienne będą domyślnie mutowalne i przekazywane przez kopię
 - Posiada range_expression “x to y”, by wygenerować sekwencję liczb całkowitych
+- zmienne przekazywane do funkcji są przekazywane przez kopię oraz są stałe wewnątrz funkcji
 
 # Dopuszczalne konstrukcje językowe
 
@@ -281,7 +282,7 @@ digit_without_zero    = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 
 # Analiza wymagań niefunkcjonalnych
 
-- Łatwość nauki - powinien być wystarczająco łatwy do zrozumienia by osoby przychodzące z innych popularnych języków mogliby szybko się zaadoptować
+- Łatwość nauki - powinien być wystarczająco łatwy do zrozumienia by osoby przychodzące z innych popularnych języków mogliby szybko się zaadoptować. Mając podstawy programowania w dwa dni powinien być w stanie napisać program w języku ks.
 - Wydajność - język powinien być wystarczająco szybki, aby umożliwić wydajne przetwarzanie dużej ilości danych
 
 # Typy danych
