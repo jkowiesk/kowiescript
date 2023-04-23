@@ -1,3 +1,5 @@
+use io::Input;
+
 // Author: Jakub Kowieski
 //
 // This is the main file of the kowiescript library. It contains all imports and exports of the library.
@@ -8,7 +10,14 @@ struct Interpreter<'a> {
     lexer: lexer::Lexer<'a>,
 }
 
-impl<'a> Interpreter<'a> {}
+impl<'a> Interpreter<'a> {
+    fn new(input: Input) -> Interpreter<'a> {
+        Interpreter {
+            lexer: lexer::Lexer::new(input),
+        }
+    }
+
+}
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right

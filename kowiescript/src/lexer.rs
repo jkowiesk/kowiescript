@@ -75,6 +75,7 @@ pub enum Token {
 pub struct Lexer<'a> {
     chr_iter: Peekable<ChrIterator<'a>>,
     line: usize,
+    new_line: Option<Vec<char>>
 }
 
 impl<'a> Lexer<'a> {
@@ -82,6 +83,7 @@ impl<'a> Lexer<'a> {
         Lexer {
             chr_iter: ChrIterator::new(input).unwrap(),
             line: 1,
+            new_line: None,
         }
     }
 
@@ -150,19 +152,7 @@ impl<'a> Lexer<'a> {
                 '[' => Ok(Token::LeftBracket),
                 ']' => Ok(Token::RightBracket),
                 ';' => Ok(Token::Semicolon),
-                _whitespace if WHITESPACES.contains(&(chr as u8)) => {
-                    while let Some(next_ch) = self.chr_iter.peek() {
-                        if WHITESPACES.contains(&(*next_ch as u8)) {
-                            self.chr_iter.next();
-                        } else if *next_ch == '\n' {
-                            self.line += 1;
-                            self.chr_iter.next();
-                        } else {
-                            break;
-                        }
-                    }
-                    self.next_token()
-                },
+                _whitespace if WHITESPACES.contains(&(chr as u8)) => self.skip_whitespace(chr),
                 _string if chr == '"' => self.string_to_token(),
                 _number if chr.is_numeric() => self.number_to_token(chr),
                 _ident if chr.is_alphanumeric() => self.identifier_to_token(chr),
@@ -172,16 +162,64 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn skip_whitespace(&mut self, chr: char) -> Result<Token, LexerError> {
+        if let Some(new_line) = &self.new_line {
+            if new_line.len() == 2 {
+                if chr == '\r' {
+                    self.line += 1;
+                    self.chr_iter.next();
+                }
+            } else {
+                if chr == new_line[0] {
+                    self.line += 1;
+                }
+            }
+        } else {
+            match chr {
+                '\r' => {
+                    if let Some(next_ch) = self.chr_iter.peek() {
+                        if *next_ch == '\n' {
+                            self.new_line = Some(vec!['\r', '\n']);
+                        } else {
+                            self.new_line = Some(vec!['\r']);
+                        }
+                        self.line += 1;
+                    }
+
+                }
+                '\n' => {
+                    self.new_line = Some(vec!['\n']);
+                    self.line += 1;
+                }
+                _ => {} // Other whitespace characters
+            }
+        }
+
+        self.next_token()
+    }
+
     fn handle_escape_chars(&mut self, string: &mut String) {
         if let Some(next_ch) = self.chr_iter.peek() {
             match *next_ch {
                 '\n' => {
                     string.push('\\');
                     string.push('n');
-                }
-                _ => {
+                },
+                '\t' => {
+                    string.push('\\');
+                    string.push('t');
+                },
+                '\r' => {
+                    string.push('\\');
+                    string.push('r');
+                },
+                '"' => {
+                    string.push('"');
+                },
+                '#' => {
                     string.push('#');
-                }
+                },
+                _ => {}
             }
             self.chr_iter.next();
         }
@@ -189,6 +227,7 @@ impl<'a> Lexer<'a> {
 
     fn string_to_token(&mut self) -> Result<Token, LexerError> {
             let mut string = String::new();
+            println!("new string");
             while let Some(next_ch) = self.chr_iter.peek() {
                 if *next_ch != '"' {
                     if *next_ch == '#' {
@@ -277,13 +316,14 @@ impl<'a> Lexer<'a> {
 
 }
 
-pub fn tokenize(mut lexer: Lexer) -> Result<Vec<Token>, LexerError> {
+pub fn tokenize(lexer: &mut Lexer) -> Result<Vec<Token>, LexerError> {
     let mut tokens = Vec::new();
     loop {
         let token = lexer.next_token()?;
 
-        // println!("{:?} ", token);
+        println!("{:?} ", token);
         tokens.push(token.clone());
+
 
         if token == Token::EOF {
             break;
@@ -311,8 +351,9 @@ pub struct LexerError {
 impl LexerError {
     fn new(line: usize, kind: LexerErrorKind, agent: String) -> Self {
         use LexerErrorKind::*;
+
         let description = match kind {
-            Spelling => format!("incorrect spelling of '{}'", agent)
+            Spelling => format!("incorrect spelling of ident '{}'", agent)
         };
 
         LexerError { description, line, agent }
@@ -336,10 +377,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_new_line() {
+        let mut lexer = Lexer::new(Input::String(String::from(" \r\n\r\nlet")));
+        let tokens_res = tokenize(&mut lexer);
+
+
+
+        assert_eq!(tokens_res.unwrap(),
+            vec![
+                Token::Let,
+                Token::EOF
+            ]
+        );
+
+        assert_eq!(lexer.line, 3);
+
+
+    }
+
+    #[test]
     fn test_ident_starts_w_number() {
-        let lexer = Lexer::new(Input::String(String::from("let 3a = 5;")));
-        let tokens_res = tokenize(lexer);
-        assert!('.'.is_alphabetic());
+        let mut lexer = Lexer::new(Input::String(String::from("\n\nlet 3a = 5;")));
+        let tokens_res = tokenize(&mut lexer);
 
         match tokens_res {
             Ok(_) => panic!("Should panic"),
@@ -348,9 +407,9 @@ mod tests {
     }
 
     #[test]
-    fn test_escape_characters() {
-        let lexer = Lexer::new(Input::File(String::from("src/tests/data/escape_characters.ks")));
-        let tokens: Vec<Token> = tokenize(lexer).unwrap();
+    fn test_escape_characters_file() {
+        let mut lexer = Lexer::new(Input::File(String::from("src/tests/data/escape_characters.ks")));
+        let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
 
         assert_eq!(
             tokens,
@@ -363,10 +422,26 @@ mod tests {
     }
 
     #[test]
+    fn test_escape_characters_string() {
+        let mut lexer = Lexer::new(Input::String(String::from("\"#\n #\r #\t #\" ##\"")));
+        let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
+
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::String("\\n \\r \\t \" #".to_string()),
+                Token::EOF
+            ]
+        );
+
+    }
+
+    #[test]
     fn test_comments() {
         let string = String::from("let a = 5; // this is a comment\n");
-        let lexer = Lexer::new(Input::String(string));
-        let tokens = tokenize(lexer).unwrap();
+        let mut lexer = Lexer::new(Input::String(string));
+        let tokens = tokenize(&mut lexer).unwrap();
 
         assert_eq!(
             tokens,
@@ -386,8 +461,8 @@ mod tests {
     #[test]
     fn test_number_tokenize() {
         let string = String::from("5 10.323");
-        let lexer = Lexer::new(Input::String(string));
-        let tokens = tokenize(lexer).unwrap();
+        let mut lexer = Lexer::new(Input::String(string));
+        let tokens = tokenize(&mut lexer).unwrap();
 
         assert_eq!(
             tokens,
@@ -402,8 +477,8 @@ mod tests {
     #[test]
     fn test_simple_string_input() {
         let string = String::from("let  a = 5;");
-        let lexer = Lexer::new(Input::String(string));
-        let tokens = tokenize(lexer).unwrap();
+        let mut lexer = Lexer::new(Input::String(string));
+        let tokens = tokenize(&mut lexer).unwrap();
 
         assert_eq!(
             tokens,
@@ -422,7 +497,7 @@ mod tests {
     fn test_double_line_input() {
         let string = String::from("let  a = 5;let b = 10.2;");
         let mut lexer = Lexer::new(Input::String(string));
-        let tokens = tokenize(lexer).unwrap();
+        let tokens = tokenize(&mut lexer).unwrap();
         assert_eq!(
             tokens,
             vec![
@@ -445,7 +520,7 @@ mod tests {
     fn test_vectors() {
         let string = String::from("let a = [1, 2, 3];");
         let mut lexer = Lexer::new(Input::String(string));
-        let tokens = tokenize(lexer).unwrap();
+        let tokens = tokenize(&mut lexer).unwrap();
         assert_eq!(
             tokens,
             vec![
@@ -468,8 +543,8 @@ mod tests {
     #[test]
     fn test_fn() {
         let string = String::from("fn test(){print(\"test\");ret 2;}");
-        let lexer = Lexer::new(Input::String(string));
-        let tokens = tokenize(lexer).unwrap();
+        let mut lexer = Lexer::new(Input::String(string));
+        let tokens = tokenize(&mut lexer).unwrap();
 
         assert_eq!(
             tokens,
@@ -495,8 +570,8 @@ mod tests {
 
     #[test]
     fn test_basic_file() {
-        let lexer = Lexer::new(Input::File(String::from("src/tests/data/basic_file.ks")));
-        let tokens: Vec<Token> = tokenize(lexer).unwrap();
+        let mut lexer = Lexer::new(Input::File(String::from("src/tests/data/basic_file.ks")));
+        let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
 
 
         assert_eq!(

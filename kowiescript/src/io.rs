@@ -10,7 +10,7 @@ pub enum Input {
 }
 
 // all whitespace characters in utf-8 encoding
-pub const WHITESPACES: [u8; 6] = [32, 9, 11, 12, 13, 160];
+pub const WHITESPACES: [u8; 7] = [32, 9, 10, 11, 12, 13, 160];
 
 
 pub struct ChrIterator<'a> {
