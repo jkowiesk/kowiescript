@@ -227,7 +227,6 @@ impl<'a> Lexer<'a> {
 
     fn string_to_token(&mut self) -> Result<Token, LexerError> {
             let mut string = String::new();
-            println!("new string");
             while let Some(next_ch) = self.chr_iter.peek() {
                 if *next_ch != '"' {
                     if *next_ch == '#' {
@@ -321,7 +320,6 @@ pub fn tokenize(lexer: &mut Lexer) -> Result<Vec<Token>, LexerError> {
     loop {
         let token = lexer.next_token()?;
 
-        println!("{:?} ", token);
         tokens.push(token.clone());
 
 
