@@ -175,26 +175,28 @@ program               = { statement };
 
 statement             = variable_declaration
                       | constant_declaration
-                      | assignment_statement
+                      | assign_declaration
                       | loop_statement
+                      | loop_substatment
                       | conditional_statement
-                      | function_declaration
+                      | function_statement
+                      | return_statement
                       | pattern_match_stmt;
 
-variable_declaration  = "let" identifier "=" expression;
-constant_declaration  = "const" identifier "=" expression;
-assignment_statement  = identifier "=" expression;
-loop_statement        = "for" identifier "in" iterator_expression "{" { statement | loop_substatment } "}";
+variable_declaration  = "let" identifier "=" expression ";";
+constant_declaration  = "const" identifier "=" expression ";";
+assign_declaration    = identifier "=" expression ";";
+loop_statement        = "for" identifier "in" iterator_expression "{" { statement } "}";
 conditional_statement = "if" expression "{" { statement } "}" [ "else" "{" { statement } "}" ];
-function_declaration  = "fn" identifier "(" [ parameter_list ] ")" "{" { statement | return_statement } "}";
-pattern_match_stmt    = "match" identifier "{" { when_substatement } default_substatement "}";
+function_statement    = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
+pattern_match_stmt    = "match" expression "{" { when_substatement } default_substatement "}";
 
 when_substatement     = "when" match_expression "then" "{" { statement } "}";
 default_substatement  = "default" "{" { statement } "}";
 
-return_statement      = "ret" expression;
-loop_substatment      = "end"
-                      | "next"
+return_statement      = "ret" [expression] ";";
+loop_substatment      = "end;"
+                      | "next;"
 
 
 iterator_expression   = vector | identifier | range_expression | function_call;
@@ -217,12 +219,14 @@ factor                = literal
                       | vector_access
                       | "(" expression ")";
 
-function_call         = identifier "(" [ parameter_list ] ")";
-parameter_list        = identifier { "," identifier };
+function_call         = identifier "(" [ argument_list ] ")";
+parameter_list        = parameter { "," parameter };
+parameter             = ["const"] identifier;
+argument_list         = expression { "," expression };
 
 range_factor          = natural_number | identifier;
 
-vector_access         = identifier "[" expression "]";
+vector_access         = (identifier | function_call) "[" expression "]";
 
 cast_operator         = "as";
 
@@ -253,21 +257,23 @@ relational_operator   = "<"
 
 vector                = "[" [ expression { "," expression } ] "]";
 
-numeric_literal       =  intager_number
+numeric_literal       =  integer_number
                       |  real_number;
 
 string_literal        = '"' character { character } '"';
 
 identifier            = letter { letter | digit | "_" };
 
-real_number           = intager_literal "." natural_number;
+real_number           = integer_literal "." digit { digit };
 
-intager_number        = ["-"] natural_number;
+integer_number        = ["-"] natural_number;
 
 natural_number        = (digit_without_zero { digit })
                       | "0";
 
-character             = letter | digit | " " | " " | "." | "," | "!" | "?" | ":" | "-" | "_" | "/" | "+" | "=";
+character             = escape_character | letter | digit | " " | " " | "." | "," | "!" | "?" | ":" | "-" | "_" | "/" | "+" | "=";
+
+escape_character      = "#", ( "\t" | "\r" | "\n" | "\"" | "#") ;
 
 digit                 = "0" | digit_without_zero;
 

@@ -53,7 +53,7 @@ argument_list         = expression { "," expression };
 
 range_factor          = natural_number | identifier;
 
-vector_access         = identifier "[" expression "]";
+vector_access         = (identifier | function_call) "[" expression "]";
 
 cast_operator         = "as";
 
@@ -100,7 +100,7 @@ natural_number        = (digit_without_zero { digit })
 
 character             = escape_character | letter | digit | " " | " " | "." | "," | "!" | "?" | ":" | "-" | "_" | "/" | "+" | "=";
 
-escape_character      = "#", ( "b" | "t" | "r" | "n" | "f" | "\"" | "#") ;
+escape_character      = "#", ( "\t" | "\r" | "\n" | "\"" | "#") ;
 
 digit                 = "0" | digit_without_zero;
 
