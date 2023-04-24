@@ -90,60 +90,15 @@ impl<'a> Lexer<'a> {
     fn next_token(&mut self) -> Result<Token, LexerError> {
         match self.chr_iter.next() {
             Some(chr) => match chr {
-                '=' => {
-                    if let Some('=') = self.chr_iter.peek() {
-                        self.chr_iter.next();
-                        Ok(Token::Equal)
-                    } else {
-                        Ok(Token::Assign)
-                    }
-                }
+                '=' => Ok(self.simple_build('=', Token::Equal, Token::Assign)),
                 '+' => Ok(Token::Plus),
                 '-' => Ok(Token::Minus),
-                '!' => {
-                    if let Some('=') = self.chr_iter.peek() {
-                        self.chr_iter.next();
-                        Ok(Token::NotEqual)
-                    } else {
-                        Ok(Token::Bang)
-                    }
-                }
+                '!' => Ok(self.simple_build('=', Token::NotEqual, Token::Bang)),
                 '*' => Ok(Token::Asterisk),
-                '/' => {
-                    if let Some('/') = self.chr_iter.peek() {
-                        self.chr_iter.next();
-                        let mut comment = String::new();
-
-                        while let Some(next_ch) = self.chr_iter.peek() {
-                            if *next_ch != '\n' {
-                                comment.push(*next_ch);
-                                self.chr_iter.next();
-                            } else {
-                                break;
-                            }
-                        }
-                        Ok(Token::Comment(comment))
-                    } else {
-                        Ok(Token::Slash)
-                    }
-                }
+                '/' => self.slash_to_token(),
                 '%' => Ok(Token::Modulo),
-                '<' => {
-                    if let Some('=') = self.chr_iter.peek() {
-                        self.chr_iter.next();
-                        Ok(Token::LEt)
-                    } else {
-                        Ok(Token::Lt)
-                    }
-                }
-                '>' => {
-                    if let Some('=') = self.chr_iter.peek() {
-                        self.chr_iter.next();
-                        Ok(Token::GEt)
-                    } else {
-                        Ok(Token::Gt)
-                    }
-                }
+                '<' => Ok(self.simple_build('=', Token::LEt, Token::Lt)),
+                '>' => Ok(self.simple_build('=', Token::GEt, Token::Gt)),
                 ',' => Ok(Token::Comma),
                 '(' => Ok(Token::LeftParen),
                 ')' => Ok(Token::RightParen),
@@ -160,6 +115,42 @@ impl<'a> Lexer<'a> {
             },
             None => Ok(Token::EOF),
         }
+    }
+
+    fn slash_to_token(&mut self) -> Result<Token, LexerError> {
+            if let Some('/') = self.chr_iter.peek() {
+                let mut comment = String::new();
+
+                self.chr_iter.next();
+                let mut next_chr = match self.chr_iter.peek() {
+                    Some(chr) => *chr,
+                    None => return Ok(Token::EOF),
+                };
+
+                while next_chr != '\n' {
+                    comment.push(next_chr);
+
+                    self.chr_iter.next();
+                    next_chr = match self.chr_iter.peek() {
+                        Some(chr) => *chr,
+                        None => break,
+                    };
+                }
+
+                Ok(Token::Comment(comment))
+            } else {
+                Ok(Token::Slash)
+            }
+    }
+
+    fn simple_build(&mut self, guess_char: char, true_token: Token, false_token: Token) -> Token {
+        if let Some(next_char) = self.chr_iter.peek() {
+            if *next_char == guess_char {
+                self.chr_iter.next();
+                return true_token;
+            }
+        }
+        false_token
     }
 
     fn skip_whitespace(&mut self, chr: char) -> Result<Token, LexerError> {
@@ -191,7 +182,7 @@ impl<'a> Lexer<'a> {
                     self.new_line = Some(vec!['\n']);
                     self.line += 1;
                 }
-                _ => {} // Other whitespace characters
+                _ => {} // Other whitespace that don't initalize new line property
             }
         }
 
@@ -227,50 +218,64 @@ impl<'a> Lexer<'a> {
 
     fn string_to_token(&mut self) -> Result<Token, LexerError> {
             let mut string = String::new();
-            while let Some(next_ch) = self.chr_iter.peek() {
-                if *next_ch != '"' {
-                    if *next_ch == '#' {
-                        self.chr_iter.next();
-                        self.handle_escape_chars(&mut string);
+            while self.chr_iter.peek() != Some(&'"') {
+                let next_chr = match self.chr_iter.peek() {
+                    Some(chr) => *chr,
+                    None => return Err(LexerError::new(self.line, LexerErrorKind::StringNotClosed, string))
+                };
 
-                    } else {
-                        string.push(*next_ch);
-                        self.chr_iter.next();
-                    }
-                } else {
+                if next_chr == '#' {
                     self.chr_iter.next();
-                    break;
+                    self.handle_escape_chars(&mut string);
+                } else {
+                    string.push(next_chr);
+                    self.chr_iter.next();
                 }
             }
+            self.chr_iter.next();
             Ok(Token::String(string))
     }
 
     fn number_to_token(&mut self, chr: char) -> Result<Token, LexerError> {
         let mut accumulator: i64 = num_char_to_u8(chr) as i64;
-        while let Some(next_ch) = self.chr_iter.peek() {
-            if next_ch.is_numeric() {
-                accumulator = accumulator * 10 + num_char_to_u8(*next_ch) as i64;
-                self.chr_iter.next();
-            } else if next_ch.is_alphabetic() {
-                return Err(LexerError::new(self.line, LexerErrorKind::Spelling, accumulator.to_string()));
-            } else {
-                break;
-            }
+        let mut next_chr = match self.chr_iter.peek() {
+            Some(chr) => *chr,
+            None => return Ok(Token::Integer(accumulator as i64))
+        };
+
+        if next_chr.is_alphabetic() {
+            return Err(LexerError::new(self.line, LexerErrorKind::Spelling, accumulator.to_string()));
+        }
+
+        while next_chr.is_numeric() {
+            accumulator = accumulator * 10 + num_char_to_u8(next_chr) as i64;
+            self.chr_iter.next();
+            next_chr = match self.chr_iter.peek() {
+                Some(chr) => *chr,
+                None => return Ok(Token::Integer(accumulator as i64))
+            };
         }
 
         if let Some('.') = self.chr_iter.peek() {
             self.chr_iter.next();
             let mut decimal_part: f64 = 0.0;
             let mut decimal_place: f64 = 0.1;
-            while let Some(next_ch) = self.chr_iter.peek() {
-                if next_ch.is_numeric() {
-                    decimal_part += num_char_to_u8(*next_ch) as f64 * decimal_place;
-                    decimal_place /= 10.0;
-                    self.chr_iter.next();
-                } else {
-                    break;
-                }
+
+            next_chr = match self.chr_iter.peek() {
+                Some(chr) => *chr,
+                None => return Ok(Token::Float(accumulator as f64))
+            };
+
+            while next_chr.is_numeric() {
+                decimal_part += num_char_to_u8(next_chr) as f64 * decimal_place;
+                decimal_place /= 10.0;
+                self.chr_iter.next();
+                next_chr = match self.chr_iter.peek() {
+                    Some(chr) => *chr,
+                    None => break,
+                };
             }
+
             Ok(Token::Float(accumulator as f64 + decimal_part))
         } else {
             Ok(Token::Integer(accumulator))
@@ -282,14 +287,22 @@ impl<'a> Lexer<'a> {
     fn identifier_to_token(&mut self, chr: char) -> Result<Token, LexerError> {
         let mut identifier = String::new();
         identifier.push(chr);
-        while let Some(next_ch) = self.chr_iter.peek() {
-            if next_ch.is_alphanumeric() || *next_ch == '_' {
-                identifier.push(*next_ch);
-                self.chr_iter.next();
-            } else {
-                break;
-            }
+
+        let mut next_chr = match self.chr_iter.peek() {
+            Some(chr) => *chr,
+            None => return Ok(Token::Identifier(identifier))
+        };
+
+        while next_chr.is_alphanumeric() || next_chr == '_' {
+            identifier.push(next_chr);
+
+            self.chr_iter.next();
+            next_chr = match self.chr_iter.peek() {
+                Some(chr) => *chr,
+                None => break
+            };
         }
+
         match identifier.as_str() {
             "let" => Ok(Token::Let),
             "const" => Ok(Token::Const),
@@ -315,27 +328,14 @@ impl<'a> Lexer<'a> {
 
 }
 
-pub fn tokenize(lexer: &mut Lexer) -> Result<Vec<Token>, LexerError> {
-    let mut tokens = Vec::new();
-    loop {
-        let token = lexer.next_token()?;
-
-        tokens.push(token.clone());
-
-
-        if token == Token::EOF {
-            break;
-        }
-    }
-    Ok(tokens)
-}
 
 pub fn num_char_to_u8(chr: char) -> u8 {
     chr as u8 - '0' as u8
 }
 #[derive(Debug)]
 pub enum LexerErrorKind {
-    Spelling
+    Spelling,
+    StringNotClosed
 }
 
 #[derive(Debug)]
@@ -351,7 +351,8 @@ impl LexerError {
         use LexerErrorKind::*;
 
         let description = match kind {
-            Spelling => format!("incorrect spelling of ident '{}'", agent)
+            Spelling => format!("incorrect spelling of ident '{}'", agent),
+            StringNotClosed =>  format!("encountered EOF before closing '{}'", agent)
         };
 
         LexerError { description, line, agent }
@@ -373,6 +374,21 @@ impl Error for LexerError {
 
 mod tests {
     use super::*;
+
+    fn tokenize(lexer: &mut Lexer) -> Result<Vec<Token>, LexerError> {
+        let mut tokens = Vec::new();
+        loop {
+            let token = lexer.next_token()?;
+            println!("{:?}", token);
+            tokens.push(token.clone());
+
+
+            if token == Token::EOF {
+                break;
+            }
+        }
+        Ok(tokens)
+    }
 
     #[test]
     fn test_new_line() {
