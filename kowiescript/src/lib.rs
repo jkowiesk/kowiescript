@@ -16,7 +16,6 @@ impl<'a> Interpreter<'a> {
             lexer: lexer::Lexer::new(input),
         }
     }
-
 }
 
 pub fn add(left: usize, right: usize) -> usize {

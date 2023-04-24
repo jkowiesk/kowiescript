@@ -1,12 +1,15 @@
 // This is lexer struct which converts the source code into tokens.
 // lexer uses ChrIterator to read the source code.
 
-use std::{iter::Peekable, error::Error, fmt::{Display, self, format}};
+use std::{
+    error::Error,
+    fmt::{self, format, Display},
+    iter::Peekable,
+};
 
 use crate::io::{ChrIterator, Input, WHITESPACES};
 
 pub const ESCAPE_CHARACTERS: [char; 5] = ['\\', '\"', '\t', '\n', '\r'];
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
@@ -75,7 +78,7 @@ pub enum Token {
 pub struct Lexer<'a> {
     chr_iter: Peekable<ChrIterator<'a>>,
     line: usize,
-    new_line: Option<Vec<char>>
+    new_line: Option<Vec<char>>,
 }
 
 impl<'a> Lexer<'a> {
@@ -118,29 +121,29 @@ impl<'a> Lexer<'a> {
     }
 
     fn slash_to_token(&mut self) -> Result<Token, LexerError> {
-            if let Some('/') = self.chr_iter.peek() {
-                let mut comment = String::new();
+        if let Some('/') = self.chr_iter.peek() {
+            let mut comment = String::new();
+
+            self.chr_iter.next();
+            let mut next_chr = match self.chr_iter.peek() {
+                Some(chr) => *chr,
+                None => return Ok(Token::EOF),
+            };
+
+            while next_chr != '\n' {
+                comment.push(next_chr);
 
                 self.chr_iter.next();
-                let mut next_chr = match self.chr_iter.peek() {
+                next_chr = match self.chr_iter.peek() {
                     Some(chr) => *chr,
-                    None => return Ok(Token::EOF),
+                    None => break,
                 };
-
-                while next_chr != '\n' {
-                    comment.push(next_chr);
-
-                    self.chr_iter.next();
-                    next_chr = match self.chr_iter.peek() {
-                        Some(chr) => *chr,
-                        None => break,
-                    };
-                }
-
-                Ok(Token::Comment(comment))
-            } else {
-                Ok(Token::Slash)
             }
+
+            Ok(Token::Comment(comment))
+        } else {
+            Ok(Token::Slash)
+        }
     }
 
     fn simple_build(&mut self, guess_char: char, true_token: Token, false_token: Token) -> Token {
@@ -176,7 +179,6 @@ impl<'a> Lexer<'a> {
                         }
                         self.line += 1;
                     }
-
                 }
                 '\n' => {
                     self.new_line = Some(vec!['\n']);
@@ -195,21 +197,21 @@ impl<'a> Lexer<'a> {
                 '\n' => {
                     string.push('\\');
                     string.push('n');
-                },
+                }
                 '\t' => {
                     string.push('\\');
                     string.push('t');
-                },
+                }
                 '\r' => {
                     string.push('\\');
                     string.push('r');
-                },
+                }
                 '"' => {
                     string.push('"');
-                },
+                }
                 '#' => {
                     string.push('#');
-                },
+                }
                 _ => {}
             }
             self.chr_iter.next();
@@ -217,34 +219,44 @@ impl<'a> Lexer<'a> {
     }
 
     fn string_to_token(&mut self) -> Result<Token, LexerError> {
-            let mut string = String::new();
-            while self.chr_iter.peek() != Some(&'"') {
-                let next_chr = match self.chr_iter.peek() {
-                    Some(chr) => *chr,
-                    None => return Err(LexerError::new(self.line, LexerErrorKind::StringNotClosed, string))
-                };
-
-                if next_chr == '#' {
-                    self.chr_iter.next();
-                    self.handle_escape_chars(&mut string);
-                } else {
-                    string.push(next_chr);
-                    self.chr_iter.next();
+        let mut string = String::new();
+        while self.chr_iter.peek() != Some(&'"') {
+            let next_chr = match self.chr_iter.peek() {
+                Some(chr) => *chr,
+                None => {
+                    return Err(LexerError::new(
+                        self.line,
+                        LexerErrorKind::StringNotClosed,
+                        string,
+                    ))
                 }
+            };
+
+            if next_chr == '#' {
+                self.chr_iter.next();
+                self.handle_escape_chars(&mut string);
+            } else {
+                string.push(next_chr);
+                self.chr_iter.next();
             }
-            self.chr_iter.next();
-            Ok(Token::String(string))
+        }
+        self.chr_iter.next();
+        Ok(Token::String(string))
     }
 
     fn number_to_token(&mut self, chr: char) -> Result<Token, LexerError> {
         let mut accumulator: i64 = num_char_to_u8(chr) as i64;
         let mut next_chr = match self.chr_iter.peek() {
             Some(chr) => *chr,
-            None => return Ok(Token::Integer(accumulator as i64))
+            None => return Ok(Token::Integer(accumulator as i64)),
         };
 
         if next_chr.is_alphabetic() {
-            return Err(LexerError::new(self.line, LexerErrorKind::Spelling, accumulator.to_string()));
+            return Err(LexerError::new(
+                self.line,
+                LexerErrorKind::Spelling,
+                accumulator.to_string(),
+            ));
         }
 
         while next_chr.is_numeric() {
@@ -252,7 +264,7 @@ impl<'a> Lexer<'a> {
             self.chr_iter.next();
             next_chr = match self.chr_iter.peek() {
                 Some(chr) => *chr,
-                None => return Ok(Token::Integer(accumulator as i64))
+                None => return Ok(Token::Integer(accumulator as i64)),
             };
         }
 
@@ -263,7 +275,7 @@ impl<'a> Lexer<'a> {
 
             next_chr = match self.chr_iter.peek() {
                 Some(chr) => *chr,
-                None => return Ok(Token::Float(accumulator as f64))
+                None => return Ok(Token::Float(accumulator as f64)),
             };
 
             while next_chr.is_numeric() {
@@ -280,8 +292,6 @@ impl<'a> Lexer<'a> {
         } else {
             Ok(Token::Integer(accumulator))
         }
-
-
     }
 
     fn identifier_to_token(&mut self, chr: char) -> Result<Token, LexerError> {
@@ -290,7 +300,7 @@ impl<'a> Lexer<'a> {
 
         let mut next_chr = match self.chr_iter.peek() {
             Some(chr) => *chr,
-            None => return Ok(Token::Identifier(identifier))
+            None => return Ok(Token::Identifier(identifier)),
         };
 
         while next_chr.is_alphanumeric() || next_chr == '_' {
@@ -299,7 +309,7 @@ impl<'a> Lexer<'a> {
             self.chr_iter.next();
             next_chr = match self.chr_iter.peek() {
                 Some(chr) => *chr,
-                None => break
+                None => break,
             };
         }
 
@@ -325,9 +335,7 @@ impl<'a> Lexer<'a> {
             _ => Ok(Token::Identifier(identifier)),
         }
     }
-
 }
-
 
 pub fn num_char_to_u8(chr: char) -> u8 {
     chr as u8 - '0' as u8
@@ -335,16 +343,15 @@ pub fn num_char_to_u8(chr: char) -> u8 {
 #[derive(Debug)]
 pub enum LexerErrorKind {
     Spelling,
-    StringNotClosed
+    StringNotClosed,
 }
 
 #[derive(Debug)]
 pub struct LexerError {
     description: String,
     line: usize,
-    agent: String
+    agent: String,
 }
-
 
 impl LexerError {
     fn new(line: usize, kind: LexerErrorKind, agent: String) -> Self {
@@ -352,16 +359,24 @@ impl LexerError {
 
         let description = match kind {
             Spelling => format!("incorrect spelling of ident '{}'", agent),
-            StringNotClosed =>  format!("encountered EOF before closing '{}'", agent)
+            StringNotClosed => format!("encountered EOF before closing '{}'", agent),
         };
 
-        LexerError { description, line, agent }
+        LexerError {
+            description,
+            line,
+            agent,
+        }
     }
 }
 
 impl fmt::Display for LexerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Lexical Error at line {}: {}", self.line, self.description)
+        write!(
+            f,
+            "Lexical Error at line {}: {}",
+            self.line, self.description
+        )
     }
 }
 
@@ -370,7 +385,6 @@ impl Error for LexerError {
         &self.description
     }
 }
-
 
 mod tests {
     use super::*;
@@ -381,7 +395,6 @@ mod tests {
             let token = lexer.next_token()?;
             println!("{:?}", token);
             tokens.push(token.clone());
-
 
             if token == Token::EOF {
                 break;
@@ -395,18 +408,9 @@ mod tests {
         let mut lexer = Lexer::new(Input::String(String::from(" \r\n\r\nlet")));
         let tokens_res = tokenize(&mut lexer);
 
-
-
-        assert_eq!(tokens_res.unwrap(),
-            vec![
-                Token::Let,
-                Token::EOF
-            ]
-        );
+        assert_eq!(tokens_res.unwrap(), vec![Token::Let, Token::EOF]);
 
         assert_eq!(lexer.line, 3);
-
-
     }
 
     #[test]
@@ -416,23 +420,18 @@ mod tests {
 
         match tokens_res {
             Ok(_) => panic!("Should panic"),
-            Err(err) => println!("{}", err)
+            Err(err) => println!("{}", err),
         }
     }
 
     #[test]
     fn test_escape_characters_file() {
-        let mut lexer = Lexer::new(Input::File(String::from("src/tests/data/escape_characters.ks")));
+        let mut lexer = Lexer::new(Input::File(String::from(
+            "src/tests/data/escape_characters.ks",
+        )));
         let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
 
-        assert_eq!(
-            tokens,
-            vec![
-                Token::String("\\n #".to_string()),
-                Token::EOF
-            ]
-        );
-
+        assert_eq!(tokens, vec![Token::String("\\n #".to_string()), Token::EOF]);
     }
 
     #[test]
@@ -440,15 +439,10 @@ mod tests {
         let mut lexer = Lexer::new(Input::String(String::from("\"#\n #\r #\t #\" ##\"")));
         let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
 
-
         assert_eq!(
             tokens,
-            vec![
-                Token::String("\\n \\r \\t \" #".to_string()),
-                Token::EOF
-            ]
+            vec![Token::String("\\n \\r \\t \" #".to_string()), Token::EOF]
         );
-
     }
 
     #[test]
@@ -469,7 +463,6 @@ mod tests {
                 Token::EOF
             ]
         );
-
     }
 
     #[test]
@@ -480,11 +473,7 @@ mod tests {
 
         assert_eq!(
             tokens,
-            vec![
-                Token::Integer(5),
-                Token::Float(10.323),
-                Token::EOF
-            ]
+            vec![Token::Integer(5), Token::Float(10.323), Token::EOF]
         );
     }
 
@@ -586,7 +575,6 @@ mod tests {
     fn test_basic_file() {
         let mut lexer = Lexer::new(Input::File(String::from("src/tests/data/basic_file.ks")));
         let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
-
 
         assert_eq!(
             tokens,

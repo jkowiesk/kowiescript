@@ -12,7 +12,6 @@ pub enum Input {
 // all whitespace characters in utf-8 encoding
 pub const WHITESPACES: [u8; 7] = [32, 9, 10, 11, 12, 13, 160];
 
-
 pub struct ChrIterator<'a> {
     buf: Box<dyn BufRead + 'a>,
     pub curr: Option<String>,
@@ -21,11 +20,7 @@ pub struct ChrIterator<'a> {
 impl<'a> ChrIterator<'a> {
     pub fn new(input: Input) -> Result<Peekable<ChrIterator<'a>>> {
         let buf = read_input(input)?;
-        Ok(ChrIterator {
-            buf,
-            curr: None,
-        }
-        .peekable())
+        Ok(ChrIterator { buf, curr: None }.peekable())
     }
 }
 
@@ -83,8 +78,10 @@ mod tests {
 
     #[test]
     fn test_escape_characters() {
-        let mut chr_iter =
-            ChrIterator::new(Input::File("src/tests/data/escape_characters.ks".to_string())).unwrap();
+        let mut chr_iter = ChrIterator::new(Input::File(
+            "src/tests/data/escape_characters.ks".to_string(),
+        ))
+        .unwrap();
 
         assert_eq!(chr_iter.next(), Some('"'));
         assert_eq!(chr_iter.next(), Some('#'));
