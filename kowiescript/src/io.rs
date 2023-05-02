@@ -77,23 +77,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_escape_characters() {
-        let mut chr_iter = ChrIterator::new(Input::File(
-            "src/tests/data/escape_characters.ks".to_string(),
-        ))
-        .unwrap();
-
-        assert_eq!(chr_iter.next(), Some('"'));
-        assert_eq!(chr_iter.next(), Some('#'));
-        assert_eq!(chr_iter.next(), Some('\n'));
-
-        assert_eq!(chr_iter.next(), Some(' '));
-
-        assert_eq!(chr_iter.next(), Some('#'));
-        assert_eq!(chr_iter.next(), Some('#'));
-    }
-
-    #[test]
     fn test_string_input() {
         let string = String::from("ąę");
         let mut chr_iter = ChrIterator::new(Input::String(string)).unwrap();

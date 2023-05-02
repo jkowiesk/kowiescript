@@ -194,15 +194,15 @@ impl<'a> Lexer<'a> {
     fn handle_escape_chars(&mut self, string: &mut String) {
         if let Some(next_ch) = self.chr_iter.peek() {
             match *next_ch {
-                '\n' => {
+                'n' => {
                     string.push('\\');
                     string.push('n');
                 }
-                '\t' => {
+                't' => {
                     string.push('\\');
                     string.push('t');
                 }
-                '\r' => {
+                'r' => {
                     string.push('\\');
                     string.push('r');
                 }
@@ -415,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_ident_starts_w_number() {
-        let mut lexer = Lexer::new(Input::String(String::from("\n\nlet 3a = 5;")));
+        let mut lexer = Lexer::new(Input::String(String::from("3a")));
         let tokens_res = tokenize(&mut lexer);
 
         match tokens_res {
@@ -425,18 +425,8 @@ mod tests {
     }
 
     #[test]
-    fn test_escape_characters_file() {
-        let mut lexer = Lexer::new(Input::File(String::from(
-            "src/tests/data/escape_characters.ks",
-        )));
-        let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
-
-        assert_eq!(tokens, vec![Token::String("\\n #".to_string()), Token::EOF]);
-    }
-
-    #[test]
     fn test_escape_characters_string() {
-        let mut lexer = Lexer::new(Input::String(String::from("\"#\n #\r #\t #\" ##\"")));
+        let mut lexer = Lexer::new(Input::String(String::from("\"#n #r #t #\" ##\"")));
         let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
 
         assert_eq!(

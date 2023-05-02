@@ -28,7 +28,7 @@ loop_substatment      = "end;"
 
 iterator_expression   = vector | identifier | range_expression | function_call;
 range_expression      = range_factor "to" range_factor;
-match_expression      = expression { "either" expression };
+match_expression      = expression { "either" expression }; <- tu błąd ???
 
 expression            = conjuction { "or" conjuction };
 conjuction            = relation_expression { "and" relation_expression };
