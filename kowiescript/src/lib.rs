@@ -5,7 +5,7 @@ use io::Input;
 // This is the main file of the kowiescript library. It contains all imports and exports of the library.
 mod io;
 mod lexer;
-
+mod parser;
 struct Interpreter<'a> {
     lexer: lexer::Lexer<'a>,
 }

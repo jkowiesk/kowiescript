@@ -34,6 +34,9 @@ pub enum Token {
     Next,
     Comment(String),
 
+    And,
+    Or,
+
     // Symbols
     Equal,
     NotEqual,
@@ -68,6 +71,11 @@ pub enum Token {
     String(String),
     Vector(String),
 
+    IntType,
+    FloatType,
+    StringType,
+    BoolType,
+
     // End of file
     EOF,
 
@@ -77,8 +85,10 @@ pub enum Token {
 
 pub struct Lexer<'a> {
     chr_iter: Peekable<ChrIterator<'a>>,
-    line: usize,
+    pub line: usize,
     new_line: Option<Vec<char>>,
+    peeked: Option<Token>,
+    cur_token: Option<Token>,
 }
 
 impl<'a> Lexer<'a> {
@@ -87,11 +97,20 @@ impl<'a> Lexer<'a> {
             chr_iter: ChrIterator::new(input).unwrap(),
             line: 1,
             new_line: None,
+            peeked: None,
+            cur_token: None,
         }
     }
 
-    fn next_token(&mut self) -> Result<Token, LexerError> {
-        match self.chr_iter.next() {
+    pub fn next_token(&mut self) -> Result<Token, LexerError> {
+        if let Some(token) = self.peeked.take() {
+            self.cur_token = Some(token.clone());
+
+            println!("peeked token: {:?}", token);
+            return Ok(token);
+        }
+
+        let token = match self.chr_iter.next() {
             Some(chr) => match chr {
                 '=' => Ok(self.simple_build('=', Token::Equal, Token::Assign)),
                 '+' => Ok(Token::Plus),
@@ -117,6 +136,30 @@ impl<'a> Lexer<'a> {
                 _ => Ok(Token::Err),
             },
             None => Ok(Token::EOF),
+        };
+
+        println!("token: {:?}", token);
+
+        if let Ok(cur_token) = &token {
+            self.cur_token = Some(cur_token.clone());
+        }
+
+        return token;
+    }
+
+    pub fn peek_token(&mut self) -> Result<Token, LexerError> {
+        if let Some(token) = self.peeked.clone() {
+            return Ok(token);
+        }
+
+        let token = self.next_token()?;
+        self.peeked = Some(token.clone());
+        Ok(token)
+    }
+
+    pub fn undo_token(&mut self) {
+        if let Some(_) = self.cur_token.clone() {
+            self.peeked = self.cur_token.clone();
         }
     }
 
@@ -332,6 +375,12 @@ impl<'a> Lexer<'a> {
             "next" => Ok(Token::Next),
             "for" => Ok(Token::For),
             "in" => Ok(Token::In),
+            "int" => Ok(Token::IntType),
+            "float" => Ok(Token::FloatType),
+            "string" => Ok(Token::StringType),
+            "bool" => Ok(Token::BoolType),
+            "and" => Ok(Token::And),
+            "or" => Ok(Token::Or),
             _ => Ok(Token::Identifier(identifier)),
         }
     }
