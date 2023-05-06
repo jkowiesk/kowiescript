@@ -49,8 +49,8 @@ pub enum SubLoopKind {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Conditional {
     pub condition: Expression,
-    pub then_branch: Vec<Statement>,
-    pub else_branch: Option<Vec<Statement>>,
+    pub then_body: Vec<Statement>,
+    pub else_body: Option<Vec<Statement>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -75,13 +75,18 @@ pub struct Return {
 pub struct PatternMatch {
     pub expression: Expression,
     pub when_branches: Vec<WhenBranch>,
-    pub default_branch: Option<Vec<Statement>>,
+    pub default_branch: Vec<Statement>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WhenBranch {
-    pub pattern: Expression,
+    pub pattern: WhenExpression,
     pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct WhenExpression {
+    pub simple_exprs: Vec<SimpleExpression>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -169,7 +174,7 @@ pub struct Inversion {
 pub enum Factor {
     Literal(Literal),
     Identifier(String),
-    Vector(Vec<Expression>),
+    Vector(Vector),
     FunctionCall(FunctionCall),
     VectorAccess(VectorAccess),
     Parenthesized(Expression),
@@ -182,8 +187,14 @@ pub struct FunctionCall {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum VectorExpr {
+    FunctionCall(FunctionCall),
+    Identifier(String),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct VectorAccess {
-    pub name: String,
+    pub vector_expr: VectorExpr,
     pub index: Expression,
 }
 
@@ -198,17 +209,17 @@ pub enum Literal {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum IteratorExpression {
     Range(RangeExpression),
-    Vector(VectorExpression),
+    Vector(Vector),
+    Identifier(String),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RangeExpression {
-    pub start: Option<Expression>,
-    pub end: Expression,
-    pub step: Option<Expression>,
+    pub start: Factor,
+    pub end: Factor,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct VectorExpression {
+pub struct Vector {
     pub values: Vec<Expression>,
 }

@@ -32,6 +32,7 @@ pub enum Token {
     In,
     End,
     Next,
+    Default,
     Comment(String),
 
     And,
@@ -206,10 +207,8 @@ impl<'a> Lexer<'a> {
                     self.line += 1;
                     self.chr_iter.next();
                 }
-            } else {
-                if chr == new_line[0] {
-                    self.line += 1;
-                }
+            } else if chr == new_line[0] {
+                self.line += 1
             }
         } else {
             match chr {
@@ -381,13 +380,14 @@ impl<'a> Lexer<'a> {
             "bool" => Ok(Token::BoolType),
             "and" => Ok(Token::And),
             "or" => Ok(Token::Or),
+            "default" => Ok(Token::Default),
             _ => Ok(Token::Identifier(identifier)),
         }
     }
 }
 
 pub fn num_char_to_u8(chr: char) -> u8 {
-    chr as u8 - '0' as u8
+    chr as u8 - b'0'
 }
 #[derive(Debug)]
 pub enum LexerErrorKind {

@@ -4,11 +4,12 @@ statement             = variable_declaration
                       | constant_declaration
                       | assign_declaration
                       | loop_statement
-                      | loop_substatment
+                      | loop_substatement
                       | conditional_statement
                       | function_statement
+                      | pattern_match_stmt
                       | return_statement
-                      | pattern_match_stmt;
+                      | comment;
 
 variable_declaration  = "let" identifier "=" expression ";";
 constant_declaration  = "const" identifier "=" expression ";";
@@ -16,19 +17,21 @@ assign_declaration    = identifier "=" expression ";";
 loop_statement        = "for" identifier "in" iterator_expression "{" { statement } "}";
 conditional_statement = "if" expression "{" { statement } "}" [ "else" "{" { statement } "}" ];
 function_statement    = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
-pattern_match_stmt    = "match" expression "{" { when_substatement } default_substatement "}";
+pattern_match_stmt    = "match" expression "{" { when_branch } default_branch "}";
 
-when_substatement     = "when" match_expression "then" "{" { statement } "}";
-default_substatement  = "default" "{" { statement } "}";
+comment               = "//" { character } "\n";
+
+when_branch           = "when" when_expression "then" "{" { statement } "}";
+default_branch        = "default" "{" { statement } "}";
 
 return_statement      = "ret" [expression] ";";
-loop_substatment      = "end;"
+loop_substatement      = "end;"
                       | "next;"
 
 
 iterator_expression   = vector | identifier | range_expression | function_call;
 range_expression      = range_factor "to" range_factor;
-match_expression      = expression { "either" expression }; <- tu błąd ???
+when_expression       = simple_expression { "either" simple_expression }; <- (poprawione) tu błąd ???
 
 expression            = conjuction { "or" conjuction };
 conjuction            = relation { "and" relation };

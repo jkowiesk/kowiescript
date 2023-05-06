@@ -177,7 +177,7 @@ statement             = variable_declaration
                       | constant_declaration
                       | assign_declaration
                       | loop_statement
-                      | loop_substatment
+                      | loop_substatement
                       | conditional_statement
                       | function_statement
                       | return_statement
@@ -195,7 +195,7 @@ when_substatement     = "when" match_expression "then" "{" { statement } "}";
 default_substatement  = "default" "{" { statement } "}";
 
 return_statement      = "ret" [expression] ";";
-loop_substatment      = "end;"
+loop_substatement      = "end;"
                       | "next;"
 
 

@@ -1,0 +1,101 @@
+(
+    values: [
+        (
+            conjunctions: [
+                (
+                    relations: [
+                        (
+                            lhs: (
+                                terms: [
+                                    (
+                                        conversions: [
+                                            (
+                                                inversion: (
+                                                    value: Literal(
+                                                        Int(
+                                                            1,
+                                                        ),
+                                                    ),
+                                                    negated: false,
+                                                ),
+                                                to: None,
+                                            ),
+                                        ],
+                                        ops: [],
+                                    ),
+                                ],
+                                ops: [],
+                            ),
+                            op: None,
+                            rhs: None,
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        (
+            conjunctions: [
+                (
+                    relations: [
+                        (
+                            lhs: (
+                                terms: [
+                                    (
+                                        conversions: [
+                                            (
+                                                inversion: (
+                                                    value: Literal(
+                                                        Int(
+                                                            2,
+                                                        ),
+                                                    ),
+                                                    negated: false,
+                                                ),
+                                                to: None,
+                                            ),
+                                        ],
+                                        ops: [],
+                                    ),
+                                ],
+                                ops: [],
+                            ),
+                            op: None,
+                            rhs: None,
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        (
+            conjunctions: [
+                (
+                    relations: [
+                        (
+                            lhs: (
+                                terms: [
+                                    (
+                                        conversions: [
+                                            (
+                                                inversion: (
+                                                    value: Identifier(
+                                                        "i",
+                                                    ),
+                                                    negated: false,
+                                                ),
+                                                to: None,
+                                            ),
+                                        ],
+                                        ops: [],
+                                    ),
+                                ],
+                                ops: [],
+                            ),
+                            op: None,
+                            rhs: None,
+                        ),
+                    ],
+                ),
+            ],
+        ),
+    ],
+)

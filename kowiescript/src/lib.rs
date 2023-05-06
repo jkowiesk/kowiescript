@@ -6,6 +6,7 @@ use io::Input;
 mod io;
 mod lexer;
 mod parser;
+
 struct Interpreter<'a> {
     lexer: lexer::Lexer<'a>,
 }
