@@ -9,14 +9,14 @@ use std::{error::Error, fmt};
 
 use self::ast::*;
 
-mod ast;
+pub mod ast;
 
-struct Parser<'a> {
+pub struct Parser<'a> {
     lexer: Lexer<'a>,
 }
 
 impl<'a> Parser<'a> {
-    fn new(input: Input) -> Parser<'a> {
+    pub fn new(input: Input) -> Parser<'a> {
         Parser {
             lexer: Lexer::new(input),
         }
@@ -143,13 +143,7 @@ impl<'a> Parser<'a> {
             _ => panic!("expected 'default' token, got {:?}", token),
         }
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::LeftBrace => (),
-            _ => panic!("expected '{{' token, got {:?}", token),
-        }
-
-        Ok(self.parse_body()?)
+        self.parse_body()
     }
 
     // when_expression = simple_expression { "either" simple_expression };
@@ -213,25 +207,7 @@ impl<'a> Parser<'a> {
 
         let parameters = self.parse_parameters()?;
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::RightParen => (),
-            _ => panic!("expected ')' token, got {:?}", token),
-        }
-
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::LeftBrace => (),
-            _ => panic!("expected '{{' token, got {:?}", token),
-        }
-
         let body = self.parse_body()?;
-
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::RightBrace => (),
-            _ => panic!("expected '}}' token, got {:?}", token),
-        }
 
         Ok(Statement::Function(Function {
             name,
@@ -243,13 +219,15 @@ impl<'a> Parser<'a> {
     // parameter_list = parameter { "," parameter };
     fn parse_parameters(&mut self) -> Result<Vec<Parameter>, Box<dyn Error>> {
         let mut parameters: Vec<Parameter> = Vec::new();
+
         loop {
-            match self.lexer.peek_token()? {
+            let parameter = self.parse_parameter()?;
+            parameters.push(parameter);
+
+            match self.lexer.next_token()? {
+                Token::Comma => (),
                 Token::RightParen => break,
-                _ => {
-                    let parameter = self.parse_parameter()?;
-                    parameters.push(parameter);
-                }
+                _token => panic!("expected ',' or ')' token, got {:?}", _token),
             }
         }
 
@@ -281,6 +259,13 @@ impl<'a> Parser<'a> {
             Token::End => SubLoopKind::End,
             _ => panic!("parse subloop error"),
         };
+
+        let token = self.lexer.next_token()?;
+        match token {
+            Token::Semicolon => (),
+            _ => panic!("expected ';' token, got {:?}", token),
+        }
+
         Ok(Statement::SubLoop(SubLoop {
             kind: sub_loop_kind,
         }))
@@ -296,36 +281,13 @@ impl<'a> Parser<'a> {
 
         let condition = self.parse_expression()?;
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::LeftBrace => (),
-            _ => panic!("expected '{{' token, got {:?}", token),
-        }
-
         let then_body = self.parse_body()?;
-
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::RightBrace => (),
-            _ => panic!("expected '}}' token, got {:?}", token),
-        }
 
         let else_body = match self.lexer.peek_token()? {
             Token::Else => {
                 self.lexer.next_token()?;
-                let token = self.lexer.next_token()?;
-                match token {
-                    Token::LeftBrace => (),
-                    _ => panic!("expected '{{' token, got {:?}", token),
-                }
 
                 let body = self.parse_body()?;
-
-                let token = self.lexer.next_token()?;
-                match token {
-                    Token::RightBrace => (),
-                    _ => panic!("expected '}}' token, got {:?}", token),
-                }
 
                 Some(body)
             }
@@ -360,19 +322,7 @@ impl<'a> Parser<'a> {
 
         let iterator = self.parse_iterated()?;
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::LeftBrace => (),
-            _ => panic!("expected '{{' token, got {:?}", token),
-        }
-
         let body = self.parse_body()?;
-
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::RightBrace => (),
-            _ => panic!("expected '}}' token, got {:?}", token),
-        }
 
         Ok(Statement::ForLoop(ForLoop {
             iter_var,
@@ -433,11 +383,20 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_body(&mut self) -> Result<Vec<Statement>, Box<dyn Error>> {
+        let token = self.lexer.next_token()?;
+        match token {
+            Token::LeftBrace => (),
+            _ => panic!("expected '{{' token, got {:?}", token),
+        }
+
         let mut statements: Vec<Statement> = Vec::new();
         loop {
             match self.lexer.peek_token()? {
                 Token::EOF => panic!("unexpected EOF"),
-                Token::RightBrace => break,
+                Token::RightBrace => {
+                    self.lexer.next_token()?;
+                    break;
+                }
                 _ => {
                     let statement = self.parse_statement()?;
                     statements.push(statement);
@@ -533,7 +492,7 @@ impl<'a> Parser<'a> {
     }
 
     // expression = conjuction { "or" conjuction };
-    fn parse_expression(&mut self) -> Result<Expression, Box<dyn Error>> {
+    pub fn parse_expression(&mut self) -> Result<Expression, Box<dyn Error>> {
         let conjunction = self.parse_conjuction()?;
 
         let mut conjunctions = Vec::new();
@@ -931,13 +890,30 @@ mod tests {
         assert_eq!(ron::to_string(&statement).unwrap(), "Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(5)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])])))],else_body:None))");
     }
 
-    #[test] // TODO: Fix this
+    #[test]
     fn test_parse_fn_no_body() {
         let mut parser = Parser::new(Input::String("fn mark(const a, b) {}".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        println!("{}", ron::to_string(&statement).unwrap());
-        //assert_eq!(ron::to_string(&statement).unwrap(), );
+        assert_eq!(ron::to_string(&statement).unwrap(), "Function((name:\"mark\",parameters:[(name:\"a\",kind:Constant),(name:\"b\",kind:Mutable)],body:[]))");
+    }
+
+    #[test]
+    fn test_parse_match_no_body() {
+        let mut parser = Parser::new(Input::String("match x {default {}} ".to_string()));
+        let statement = parser.parse_statement().unwrap();
+
+        assert_eq!(ron::to_string(&statement).unwrap(), "PatternMatch((expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"x\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),when_branches:[],default_branch:[]))");
+    }
+
+    #[test]
+    fn test_parse_match_simple() {
+        let mut parser = Parser::new(Input::String(
+            "match x {when 2 + 3 then {a = 2;} default {a = 1;}} ".to_string(),
+        ));
+        let statement = parser.parse_statement().unwrap();
+
+        assert_eq!(ron::to_string(&statement).unwrap(), "PatternMatch((expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"x\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),when_branches:[(pattern:(simple_exprs:[(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[Add])]),body:[Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))])],default_branch:[Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))]))");
     }
 
     #[test]
@@ -954,6 +930,21 @@ mod tests {
         let starts_ident = parser.parse_starts_identifier().unwrap();
 
         assert_eq!(ron::to_string(&starts_ident).unwrap(), "FunctionCall((name:\"test\",arguments:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])]))");
+    }
+
+    #[test]
+    fn test_parse_next_and_end() {
+        let mut parser = Parser::new(Input::String("end;next;".to_string()));
+        let statements = parser.parse_program().unwrap();
+
+        assert_eq!(
+            ron::to_string(&statements[0]).unwrap(),
+            "SubLoop((kind:End))"
+        );
+        assert_eq!(
+            ron::to_string(&statements[1]).unwrap(),
+            "SubLoop((kind:Next))"
+        );
     }
 
     fn copy() {

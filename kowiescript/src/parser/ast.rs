@@ -1,3 +1,5 @@
+use std::ops::{Add, Div, Mul, Rem, Sub};
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -6,7 +8,7 @@ pub enum VarKind {
     Mutable,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, PartialOrd)]
 pub enum Value {
     Int(i64),
     Float(f64),
@@ -222,4 +224,110 @@ pub struct RangeExpression {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Vector {
     pub values: Vec<Expression>,
+}
+
+// impl traits
+
+impl Add for Value {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        match self {
+            Value::Int(left) => match other {
+                Value::Int(right) => Value::Int(left + right),
+                Value::Float(right) => Value::Float(left as f64 + right),
+                _ => unimplemented!("Cannot add {:?} and {:?}", self, other),
+            },
+            Value::Float(left) => match other {
+                Value::Int(right) => Value::Float(left + right as f64),
+                Value::Float(right) => Value::Float(left + right),
+                _ => unimplemented!("Cannot add {:?} and {:?}", self, other),
+            },
+            Value::String(left) => match other {
+                Value::String(right) => Value::String(left + &right),
+                _ => unimplemented!("Cannot add {:?} and {:?}", left, other),
+            },
+            _ => unimplemented!("Cannot add {:?} and {:?}", self, other),
+        }
+    }
+}
+
+impl Sub for Value {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        match self {
+            Value::Int(left) => match other {
+                Value::Int(right) => Value::Int(left - right),
+                Value::Float(right) => Value::Float(left as f64 - right),
+                _ => unimplemented!("Cannot subtract {:?} and {:?}", self, other),
+            },
+            Value::Float(left) => match other {
+                Value::Int(right) => Value::Float(left - right as f64),
+                Value::Float(right) => Value::Float(left - right),
+                _ => unimplemented!("Cannot subtract {:?} and {:?}", self, other),
+            },
+            _ => unimplemented!("Cannot subtract {:?} and {:?}", self, other),
+        }
+    }
+}
+
+impl Mul for Value {
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self {
+        match self {
+            Value::Int(left) => match other {
+                Value::Int(right) => Value::Int(left * right),
+                Value::Float(right) => Value::Float(left as f64 * right),
+                _ => unimplemented!("Cannot multiply {:?} and {:?}", self, other),
+            },
+            Value::Float(left) => match other {
+                Value::Int(right) => Value::Float(left * right as f64),
+                Value::Float(right) => Value::Float(left * right),
+                _ => unimplemented!("Cannot multiply {:?} and {:?}", self, other),
+            },
+            _ => unimplemented!("Cannot multiply {:?} and {:?}", self, other),
+        }
+    }
+}
+
+impl Div for Value {
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self {
+        match self {
+            Value::Int(left) => match other {
+                Value::Int(right) => Value::Int(left / right),
+                Value::Float(right) => Value::Float(left as f64 / right),
+                _ => unimplemented!("Cannot divide {:?} and {:?}", self, other),
+            },
+            Value::Float(left) => match other {
+                Value::Int(right) => Value::Float(left / right as f64),
+                Value::Float(right) => Value::Float(left / right),
+                _ => unimplemented!("Cannot divide {:?} and {:?}", self, other),
+            },
+            _ => unimplemented!("Cannot divide {:?} and {:?}", self, other),
+        }
+    }
+}
+
+impl Rem for Value {
+    type Output = Self;
+
+    fn rem(self, other: Self) -> Self {
+        match self {
+            Value::Int(left) => match other {
+                Value::Int(right) => Value::Int(left % right),
+                Value::Float(right) => Value::Float(left as f64 % right),
+                _ => unimplemented!("Cannot modulo {:?} and {:?}", self, other),
+            },
+            Value::Float(left) => match other {
+                Value::Int(right) => Value::Float(left % right as f64),
+                Value::Float(right) => Value::Float(left % right),
+                _ => unimplemented!("Cannot modulo {:?} and {:?}", self, other),
+            },
+            _ => unimplemented!("Cannot modulo {:?} and {:?}", self, other),
+        }
+    }
 }
