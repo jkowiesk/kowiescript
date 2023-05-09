@@ -3,9 +3,9 @@
 
 use crate::{
     io::Input,
-    lexer::{Lexer, Token},
+    lexer::{token::Token, Lexer},
 };
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, string::ParseError};
 
 use self::ast::*;
 
@@ -25,17 +25,23 @@ impl<'a> Parser<'a> {
     // program = { statement };
     pub fn parse_program(&mut self) -> Result<Vec<Statement>, Box<dyn Error>> {
         let mut statements: Vec<Statement> = Vec::new();
-        loop {
-            match self.lexer.peek_token()? {
-                Token::EOF => break,
-                _ => {
-                    let statement = self.parse_statement()?;
-                    statements.push(statement);
-                }
-            }
+
+        while let Some(_) = self.peek_and_check_is_not(Token::EOF)? {
+            let statement = self.parse_statement()?;
+            statements.push(statement);
         }
 
         Ok(statements)
+    }
+
+    fn peek_and_check_is_not(&mut self, token: Token) -> Result<Option<Token>, Box<dyn Error>> {
+        let peeked = self.lexer.peek_token()?;
+
+        if peeked != token {
+            Ok(Some(token))
+        } else {
+            Ok(None)
+        }
     }
 
     /* statement = variable_declaration
@@ -73,39 +79,21 @@ impl<'a> Parser<'a> {
 
     // pattern_match_stmt = "match" expression "{" { when_branch } default_branch "}";
     fn parse_match(&mut self) -> Result<Statement, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Match => (),
-            _ => panic!("expected 'match' token, got {:?}", token),
-        }
+        self.check_token(Token::Match)?;
 
         let expression = self.parse_expression()?;
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::LeftBrace => (),
-            _ => panic!("expected '{{' token, got {:?}", token),
-        }
+        self.check_token(Token::LeftBrace)?;
 
         let mut when_branches: Vec<WhenBranch> = Vec::new();
 
-        loop {
-            match self.lexer.peek_token()? {
-                Token::Default => break,
-                _ => {
-                    let when_branch = self.parse_when_branch()?;
-                    when_branches.push(when_branch);
-                }
-            }
+        while self.peek_and_check_is_not(Token::Default)?.is_some() {
+            when_branches.push(self.parse_when_branch()?);
         }
 
         let default_branch = self.parse_default_branch()?;
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::RightBrace => (),
-            _ => panic!("expected '}}' token, got {:?}", token),
-        }
+        self.check_token(Token::RightBrace)?;
 
         Ok(Statement::PatternMatch(PatternMatch {
             expression,
@@ -116,94 +104,62 @@ impl<'a> Parser<'a> {
 
     // when_branch = "when" match_expression "then" "{" { statement } "}";
     fn parse_when_branch(&mut self) -> Result<WhenBranch, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::When => (),
-            _ => panic!("expected 'when' token, got {:?}", token),
-        }
+        self.check_token(Token::When)?;
 
         let pattern = self.parse_match_expression()?;
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Then => (),
-            _ => panic!("expected 'then' token, got {:?}", token),
-        }
+        self.check_token(Token::Then)?;
 
-        let mut body = self.parse_body()?;
+        let body = self.parse_body()?;
 
         Ok(WhenBranch { pattern, body })
     }
 
-    // default_branch = "default" "{" { statement } "}";
-    fn parse_default_branch(&mut self) -> Result<Vec<Statement>, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Default => (),
-            _ => panic!("expected 'default' token, got {:?}", token),
-        }
-
-        self.parse_body()
-    }
-
     // when_expression = simple_expression { "either" simple_expression };
     fn parse_match_expression(&mut self) -> Result<WhenExpression, Box<dyn Error>> {
-        let mut simple_exprs: Vec<SimpleExpression> = Vec::new();
-        loop {
+        let mut simple_exprs: Vec<SimpleExpression> = vec![self.parse_simple_expression()?];
+
+        while let Token::Either = self.lexer.peek_token()? {
+            self.lexer.next_token()?;
             let simple_expression = self.parse_simple_expression()?;
             simple_exprs.push(simple_expression);
-
-            match self.lexer.peek_token()? {
-                Token::Either => {
-                    self.lexer.next_token()?;
-                }
-                _ => break,
-            }
         }
 
         Ok(WhenExpression { simple_exprs })
     }
 
+    // default_branch = "default" "{" { statement } "}";
+    fn parse_default_branch(&mut self) -> Result<Vec<Statement>, Box<dyn Error>> {
+        self.check_token(Token::Default)?;
+
+        self.parse_body()
+    }
+
     // return_statement = "ret" [expression] ";";
     fn parse_return(&mut self) -> Result<Statement, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Return => (),
-            _ => panic!("expected 'ret' token, got {:?}", token),
-        }
+        self.check_token(Token::Return)?;
 
         let value = match self.lexer.peek_token()? {
             Token::Semicolon => None,
             _ => Some(self.parse_expression()?),
         };
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Semicolon => (),
-            _ => panic!("expected ';' token, got {:?}", token),
-        }
+        self.check_token(Token::Semicolon)?;
 
         Ok(Statement::Return(Return { value }))
     }
 
     // function_statement = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
     fn prase_fn(&mut self) -> Result<Statement, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Fn => (),
-            _ => panic!("expected 'fn' token, got {:?}", token),
-        }
+        self.check_token(Token::Fn)?;
 
-        let name = match self.lexer.next_token()? {
+        let token = self.lexer.next_token()?;
+        let name = match token {
             Token::Identifier(name) => name,
             _ => panic!("expected identifier token, got {:?}", token),
         };
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::LeftParen => (),
-            _ => panic!("expected '(' token, got {:?}", token),
-        }
+        self.check_token(Token::LeftParen)?;
 
         let parameters = self.parse_parameters()?;
 
@@ -260,11 +216,7 @@ impl<'a> Parser<'a> {
             _ => panic!("parse subloop error"),
         };
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Semicolon => (),
-            _ => panic!("expected ';' token, got {:?}", token),
-        }
+        self.check_token(Token::Semicolon)?;
 
         Ok(Statement::SubLoop(SubLoop {
             kind: sub_loop_kind,
@@ -273,11 +225,7 @@ impl<'a> Parser<'a> {
 
     // conditional_statement = "if" expression "{" { statement } "}" [ "else" "{" { statement } "}" ];
     fn parse_if(&mut self) -> Result<Statement, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::If => (),
-            _ => panic!("expected 'if' token, got {:?}", token),
-        }
+        self.check_token(Token::If)?;
 
         let condition = self.parse_expression()?;
 
@@ -303,22 +251,18 @@ impl<'a> Parser<'a> {
 
     // loop_statement = "for" identifier "in" iterator_expression "{" { statement } "}";
     fn parse_for_loop(&mut self) -> Result<Statement, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::For => (),
-            _ => panic!("expected 'for' token, got {:?}", token),
-        }
+        self.check_token(Token::For)?;
 
-        let iter_var = match self.lexer.next_token()? {
+        let token = self.lexer.next_token()?;
+        let iter_var = match token {
             Token::Identifier(name) => name,
-            _ => panic!("expected 'identifier' token, got {:?}", token),
+            _ => Err(ParserError::boxed(
+                self.lexer.line,
+                ParserErrorKind::MissingIdent,
+                token,
+            ))?,
         };
-
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::In => (),
-            _ => panic!("expected 'in' token, got {:?}", token),
-        }
+        self.check_token(Token::In)?;
 
         let iterator = self.parse_iterated()?;
 
@@ -342,7 +286,7 @@ impl<'a> Parser<'a> {
                         let end = self.parse_range_factor()?;
                         Ok(IteratorExpression::Range(RangeExpression { start, end }))
                     }
-                    _ => panic!("expected '..' token, got {:?}", token),
+                    _ => panic!("expected 'to' token, got {:?}", token),
                 }
             }
             Token::Identifier(name) => {
@@ -383,11 +327,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_body(&mut self) -> Result<Vec<Statement>, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::LeftBrace => (),
-            _ => panic!("expected '{{' token, got {:?}", token),
-        }
+        self.check_token(Token::LeftBrace)?;
 
         let mut statements: Vec<Statement> = Vec::new();
         loop {
@@ -409,29 +349,28 @@ impl<'a> Parser<'a> {
 
     // assign_declaration = identifier "=" expression ";";
     fn parse_assignment(&mut self, name: String) -> Result<Statement, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Assign => (),
-            _ => panic!("expected '=' token, got {:?}", token),
-        }
+        self.check_token(Token::Assign)?;
 
         let expression = self.parse_expression()?;
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Semicolon => (),
-            _ => panic!("expected ';' token, got {:?}", token),
-        }
+        self.check_token(Token::Semicolon)?;
 
         Ok(Statement::Assignment(Assignment { name, expression }))
     }
 
     // variable_declaration  = "let" identifier "=" expression ";";
     fn parse_var_declaration(&mut self) -> Result<Statement, Box<dyn Error>> {
-        let kind = match self.lexer.next_token()? {
+        let token = self.lexer.next_token()?;
+        let kind = match token {
             Token::Let => VarKind::Mutable,
             Token::Const => VarKind::Constant,
-            _ => panic!("expected 'let' or 'const' token"),
+            _ => {
+                return Err(ParserError::boxed(
+                    self.lexer.line,
+                    ParserErrorKind::ExpectedLetOrConst,
+                    token,
+                ))
+            }
         };
 
         let token = self.lexer.next_token()?;
@@ -441,24 +380,16 @@ impl<'a> Parser<'a> {
                 return Err(ParserError::boxed(
                     self.lexer.line,
                     ParserErrorKind::MissingIdent,
-                    format!("{:?}", name),
+                    name,
                 ))
             }
         };
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Assign => (),
-            _ => panic!("expected '=' token, got {:?}", token),
-        }
+        self.check_token(Token::Assign)?;
 
         let expression = self.parse_expression()?;
 
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::Semicolon => (),
-            _ => panic!("expected ';' token, got {:?}", token),
-        }
+        self.check_token(Token::Semicolon)?;
 
         Ok(Statement::VarDeclaration(VarDeclaration {
             kind,
@@ -469,11 +400,7 @@ impl<'a> Parser<'a> {
 
     // vector = "[" [ expression { "," expression } ] "]";
     fn parse_vector(&mut self) -> Result<Vector, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        match token {
-            Token::LeftBracket => (),
-            _ => panic!("expected '[' token, got {:?}", token),
-        }
+        self.check_token(Token::LeftBracket)?;
 
         let mut values = Vec::new();
 
@@ -481,7 +408,8 @@ impl<'a> Parser<'a> {
             let expression = self.parse_expression()?;
             values.push(expression);
 
-            match self.lexer.next_token()? {
+            let token = self.lexer.next_token()?;
+            match token {
                 Token::Comma => (),
                 Token::RightBracket => break,
                 _ => panic!("expected ',' or ']' token, got {:?}", token),
@@ -765,26 +693,48 @@ impl<'a> Parser<'a> {
         self.lexer.next_token()?;
         Ok(Factor::Parenthesized(expression))
     }
+
+    fn check_token(&mut self, expected_token: Token) -> Result<(), Box<dyn Error>> {
+        let given_token = self.lexer.next_token()?;
+        if given_token == expected_token {
+            Ok(())
+        } else {
+            Err(ParserError::boxed(
+                self.lexer.line,
+                ParserErrorKind::UnexpectedToken(given_token),
+                expected_token,
+            ))
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum ParserErrorKind {
     MissingIdent,
+    UnexpectedToken(Token),
+    ExpectedLetOrConst,
 }
 
 #[derive(Debug)]
 pub struct ParserError {
     description: String,
     line: usize,
-    agent: String,
+    agent: Token,
 }
 
 impl ParserError {
-    fn new(line: usize, kind: ParserErrorKind, agent: String) -> Self {
+    fn new(line: usize, kind: ParserErrorKind, agent: Token) -> Self {
         use ParserErrorKind::*;
 
         let description = match kind {
-            MissingIdent => format!("incorrect spelling of ident '{}'", agent),
+            MissingIdent => format!("incorrect spelling of ident '{:?}'", agent),
+            UnexpectedToken(given_token) => format!(
+                "Unexpected token: got '{:?}' expected '{:?}'",
+                given_token, agent
+            ),
+            ExpectedLetOrConst => {
+                format!("expected 'let' or 'const' token got '{:?}'", agent)
+            }
         };
 
         ParserError {
@@ -794,19 +744,8 @@ impl ParserError {
         }
     }
 
-    fn boxed(line: usize, kind: ParserErrorKind, agent: String) -> Box<Self> {
-        use ParserErrorKind::*;
-
-        let description = match kind {
-            MissingIdent => format!("incorrect spelling of ident '{}'", agent),
-        };
-        let err = ParserError {
-            description,
-            line,
-            agent,
-        };
-
-        Box::new(err)
+    fn boxed(line: usize, kind: ParserErrorKind, agent: Token) -> Box<Self> {
+        Box::new(ParserError::new(line, kind, agent))
     }
 }
 
@@ -945,6 +884,16 @@ mod tests {
             ron::to_string(&statements[1]).unwrap(),
             "SubLoop((kind:Next))"
         );
+    }
+
+    #[test]
+    fn test_test() {
+        let mut parser = Parser::new(Input::String("for in".to_string()));
+        let result = parser.parse_program();
+
+        if let Err(err) = result {
+            println!("{}", err);
+        }
     }
 
     fn copy() {

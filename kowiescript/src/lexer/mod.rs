@@ -11,78 +11,9 @@ use crate::io::{ChrIterator, Input, WHITESPACES};
 
 pub const ESCAPE_CHARACTERS: [char; 5] = ['\\', '\"', '\t', '\n', '\r'];
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Token {
-    // Keywords
-    Let,
-    Const,
-    True,
-    False,
-    If,
-    For,
-    Else,
-    Fn,
-    Return,
-    Match,
-    When,
-    Then,
-    Range,
-    Either,
-    As,
-    In,
-    End,
-    Next,
-    Default,
-    Comment(String),
+use self::token::Token;
 
-    And,
-    Or,
-
-    // Symbols
-    Equal,
-    NotEqual,
-    Lt,
-    LEt,
-    Gt,
-    GEt,
-    Bang,
-
-    Plus,
-    Minus,
-    Asterisk,
-    Slash,
-    Modulo,
-
-    DoubleSlash,
-
-    Assign,
-    Comma,
-    Semicolon,
-    LeftParen,
-    RightParen,
-    LeftBrace,
-    RightBrace,
-    LeftBracket,
-    RightBracket,
-
-    // Identifiers and literals
-    Identifier(String),
-    Integer(i64),
-    Float(f64),
-    String(String),
-    Vector(String),
-
-    IntType,
-    FloatType,
-    StringType,
-    BoolType,
-
-    // End of file
-    EOF,
-
-    // Temp token for match exhaustion
-    Err,
-}
+pub mod token;
 
 pub struct Lexer<'a> {
     chr_iter: Peekable<ChrIterator<'a>>,
@@ -169,19 +100,10 @@ impl<'a> Lexer<'a> {
             let mut comment = String::new();
 
             self.chr_iter.next();
-            let mut next_chr = match self.chr_iter.peek() {
-                Some(chr) => *chr,
-                None => return Ok(Token::EOF),
-            };
 
-            while next_chr != '\n' {
-                comment.push(next_chr);
-
+            while let Some(next_chr) = self.peek_and_check_chr(|chr| chr != '\n') {
                 self.chr_iter.next();
-                next_chr = match self.chr_iter.peek() {
-                    Some(chr) => *chr,
-                    None => break,
-                };
+                comment.push(next_chr);
             }
 
             Ok(Token::Comment(comment))
@@ -306,7 +228,7 @@ impl<'a> Lexer<'a> {
             self.chr_iter.next();
             next_chr = match self.chr_iter.peek() {
                 Some(chr) => *chr,
-                None => return Ok(Token::Integer(accumulator as i64)),
+                None => return Ok(Token::Integer(accumulator)),
             };
         }
 
@@ -315,19 +237,15 @@ impl<'a> Lexer<'a> {
             let mut decimal_part: f64 = 0.0;
             let mut decimal_place: f64 = 0.1;
 
-            next_chr = match self.chr_iter.peek() {
-                Some(chr) => *chr,
+            match self.chr_iter.peek() {
+                Some(_) => {}
                 None => return Ok(Token::Float(accumulator as f64)),
             };
 
-            while next_chr.is_numeric() {
+            while let Some(next_chr) = self.peek_and_check_chr(|chr| chr.is_numeric()) {
+                self.chr_iter.next();
                 decimal_part += num_char_to_u8(next_chr) as f64 * decimal_place;
                 decimal_place /= 10.0;
-                self.chr_iter.next();
-                next_chr = match self.chr_iter.peek() {
-                    Some(chr) => *chr,
-                    None => break,
-                };
             }
 
             Ok(Token::Float(accumulator as f64 + decimal_part))
@@ -345,14 +263,11 @@ impl<'a> Lexer<'a> {
             None => return Ok(Token::Identifier(identifier)),
         };
 
-        while next_chr.is_alphanumeric() || next_chr == '_' {
-            identifier.push(next_chr);
-
+        while let Some(next_chr) =
+            self.peek_and_check_chr(|chr| chr.is_alphanumeric() || chr == '_')
+        {
             self.chr_iter.next();
-            next_chr = match self.chr_iter.peek() {
-                Some(chr) => *chr,
-                None => break,
-            };
+            identifier.push(next_chr);
         }
 
         match identifier.as_str() {
@@ -382,6 +297,22 @@ impl<'a> Lexer<'a> {
             "or" => Ok(Token::Or),
             "default" => Ok(Token::Default),
             _ => Ok(Token::Identifier(identifier)),
+        }
+    }
+
+    fn peek_and_check_chr<F>(&mut self, condition: F) -> Option<char>
+    where
+        F: FnOnce(char) -> bool,
+    {
+        match self.chr_iter.peek() {
+            Some(chr) => {
+                if condition(*chr) {
+                    Some(*chr)
+                } else {
+                    None
+                }
+            }
+            None => None,
         }
     }
 }
