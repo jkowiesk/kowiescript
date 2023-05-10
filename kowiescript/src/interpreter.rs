@@ -75,7 +75,7 @@ impl Interpreter {
 
     fn evaluate_expression(&mut self, expression: &Expression) -> Result<Value, Box<dyn Error>> {
         match expression.conjunctions.len() {
-            0 => Ok(Value::Bool(false)), // Empty expression evaluates to false
+            0 => Ok(Value::Bool(false)),
             1 => self.evaluate_conjunction(&expression.conjunctions[0]),
             _ => {
                 let mut result = self.evaluate_conjunction(&expression.conjunctions[0])?;
@@ -95,7 +95,7 @@ impl Interpreter {
 
     fn evaluate_conjunction(&mut self, conjunction: &Conjunction) -> Result<Value, Box<dyn Error>> {
         match conjunction.relations.len() {
-            0 => Ok(Value::Bool(true)), // Empty conjunction evaluates to true
+            0 => Ok(Value::Bool(true)),
             1 => self.evaluate_relation(&conjunction.relations[0]),
             _ => {
                 let mut result = self.evaluate_relation(&conjunction.relations[0])?;
@@ -235,7 +235,6 @@ impl Interpreter {
         &mut self,
         func_call: &FunctionCall,
     ) -> Result<Value, Box<dyn Error>> {
-        // Implement the evaluation of function calls here
         unimplemented!("Function calls are not implemented yet.")
     }
 
@@ -243,7 +242,6 @@ impl Interpreter {
         &mut self,
         vector_access: &VectorAccess,
     ) -> Result<Value, Box<dyn Error>> {
-        // Implement the evaluation of vector access here
         unimplemented!("Vector access is not implemented yet.")
     }
 
@@ -261,7 +259,7 @@ impl Interpreter {
                             value
                         }
                     }
-                    _ => unimplemented!("Cannot iterate over non-int range."),
+                    _ => panic!("Cannot iterate over non-int range."),
                 };
                 let end = match self.evaluate_factor(&range.start)? {
                     Value::Int(value) => {
@@ -271,7 +269,7 @@ impl Interpreter {
                             value
                         }
                     }
-                    _ => unimplemented!("Cannot iterate over non-int range."),
+                    _ => panic!("Cannot iterate over non-int range."),
                 };
 
                 // range to Vec<value>
@@ -339,7 +337,6 @@ impl Interpreter {
     }
 
     fn negate_value(&self, value: Value) -> Value {
-        // Implement negation of value here
         unimplemented!("Negation is not implemented yet.")
     }
 }

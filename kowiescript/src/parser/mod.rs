@@ -56,13 +56,7 @@ impl<'a> Parser<'a> {
     fn parse_statement(&mut self) -> Result<Statement, Box<dyn Error>> {
         match self.lexer.peek_token()? {
             Token::Let | Token::Const => self.parse_var_declaration(),
-            Token::Identifier(name) => {
-                self.lexer.next_token()?;
-                match self.lexer.peek_token()? {
-                    Token::Assign => self.parse_assignment(name),
-                    _ => panic!("parse statment error"),
-                }
-            }
+            Token::Identifier(name) => self.parse_assignment(name),
             Token::For => self.parse_for_loop(),
             Token::Next | Token::End => self.parse_subloop(),
             Token::If => self.parse_if(),
@@ -73,7 +67,11 @@ impl<'a> Parser<'a> {
                 self.lexer.next_token()?;
                 self.parse_statement()
             }
-            _ => panic!("parse statment error"),
+            _token => Err(ParserError::boxed(
+                self.lexer.line,
+                ParserErrorKind::UnrecognizedStmt,
+                _token,
+            )),
         }
     }
 
@@ -153,10 +151,13 @@ impl<'a> Parser<'a> {
     fn prase_fn(&mut self) -> Result<Statement, Box<dyn Error>> {
         self.check_token(Token::Fn)?;
 
-        let token = self.lexer.next_token()?;
-        let name = match token {
+        let name = match self.lexer.next_token()? {
             Token::Identifier(name) => name,
-            _ => panic!("expected identifier token, got {:?}", token),
+            _token => Err(ParserError::boxed(
+                self.lexer.line,
+                ParserErrorKind::ExpectedIndent,
+                _token,
+            ))?,
         };
 
         self.check_token(Token::LeftParen)?;
@@ -183,7 +184,11 @@ impl<'a> Parser<'a> {
             match self.lexer.next_token()? {
                 Token::Comma => (),
                 Token::RightParen => break,
-                _token => panic!("expected ',' or ')' token, got {:?}", _token),
+                _token => Err(ParserError::boxed(
+                    self.lexer.line,
+                    ParserErrorKind::UnexpectedTokens(vec![Token::Comma, Token::RightParen]),
+                    _token,
+                ))?,
             }
         }
 
@@ -201,7 +206,13 @@ impl<'a> Parser<'a> {
 
         let name = match self.lexer.next_token()? {
             Token::Identifier(name) => name,
-            _token => panic!("expected identifier token, got {:?}", _token),
+            _token => {
+                return Err(ParserError::boxed(
+                    self.lexer.line,
+                    ParserErrorKind::ExpectedIndent,
+                    _token,
+                ))
+            }
         };
 
         Ok(Parameter { name, kind })
@@ -264,7 +275,7 @@ impl<'a> Parser<'a> {
         };
         self.check_token(Token::In)?;
 
-        let iterator = self.parse_iterated()?;
+        let iterator = self.parse_iterator_expression()?;
 
         let body = self.parse_body()?;
 
@@ -276,7 +287,7 @@ impl<'a> Parser<'a> {
     }
 
     // iterator_expression = vector | identifier | range_expression | function_call;
-    fn parse_iterated(&mut self) -> Result<IteratorExpression, Box<dyn Error>> {
+    fn parse_iterator_expression(&mut self) -> Result<IteratorExpression, Box<dyn Error>> {
         match self.lexer.peek_token()? {
             Token::Integer(_) => {
                 let start = self.parse_range_factor()?;
@@ -286,7 +297,11 @@ impl<'a> Parser<'a> {
                         let end = self.parse_range_factor()?;
                         Ok(IteratorExpression::Range(RangeExpression { start, end }))
                     }
-                    _ => panic!("expected 'to' token, got {:?}", token),
+                    _ => Err(ParserError::boxed(
+                        self.lexer.line,
+                        ParserErrorKind::UnexpectedTokens(vec![Token::Range]),
+                        token,
+                    ))?,
                 }
             }
             Token::Identifier(name) => {
@@ -307,7 +322,15 @@ impl<'a> Parser<'a> {
                 self.lexer.next_token()?;
                 Ok(IteratorExpression::Vector(self.parse_vector()?))
             }
-            _token => panic!("expected 'Factor' or 'identifier' token, got {:?}", _token),
+            _token => Err(ParserError::boxed(
+                self.lexer.line,
+                ParserErrorKind::UnexpectedExpr(vec![
+                    "factor".to_string(),
+                    "identifier".to_string(),
+                    "vector".to_string(),
+                ]),
+                _token,
+            ))?,
         }
     }
 
@@ -349,6 +372,7 @@ impl<'a> Parser<'a> {
 
     // assign_declaration = identifier "=" expression ";";
     fn parse_assignment(&mut self, name: String) -> Result<Statement, Box<dyn Error>> {
+        self.lexer.next_token()?;
         self.check_token(Token::Assign)?;
 
         let expression = self.parse_expression()?;
@@ -367,7 +391,7 @@ impl<'a> Parser<'a> {
             _ => {
                 return Err(ParserError::boxed(
                     self.lexer.line,
-                    ParserErrorKind::ExpectedLetOrConst,
+                    ParserErrorKind::UnexpectedTokens(vec![Token::Let, Token::Const]),
                     token,
                 ))
             }
@@ -701,8 +725,8 @@ impl<'a> Parser<'a> {
         } else {
             Err(ParserError::boxed(
                 self.lexer.line,
-                ParserErrorKind::UnexpectedToken(given_token),
-                expected_token,
+                ParserErrorKind::UnexpectedTokens(vec![expected_token]),
+                given_token,
             ))
         }
     }
@@ -711,8 +735,10 @@ impl<'a> Parser<'a> {
 #[derive(Debug)]
 pub enum ParserErrorKind {
     MissingIdent,
-    UnexpectedToken(Token),
-    ExpectedLetOrConst,
+    UnexpectedTokens(Vec<Token>),
+    UnexpectedExpr(Vec<String>),
+    UnrecognizedStmt,
+    ExpectedIndent,
 }
 
 #[derive(Debug)]
@@ -727,13 +753,35 @@ impl ParserError {
         use ParserErrorKind::*;
 
         let description = match kind {
-            MissingIdent => format!("incorrect spelling of ident '{:?}'", agent),
-            UnexpectedToken(given_token) => format!(
-                "Unexpected token: got '{:?}' expected '{:?}'",
-                given_token, agent
+            MissingIdent => format!("incorrect spelling of ident '{}'", agent),
+            ExpectedIndent => format!("expected identifier got '{}'", agent),
+            UnrecognizedStmt => format!(
+                "Unrecognized statement started with '{}', are u the syntax is correct ?",
+                agent
             ),
-            ExpectedLetOrConst => {
-                format!("expected 'let' or 'const' token got '{:?}'", agent)
+            UnexpectedTokens(given_tokens) => {
+                let given_tokens = given_tokens
+                    .iter()
+                    .map(|token| format!("{}", token))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                format!(
+                    "Unexpected token: got '{}' expected {}",
+                    agent, given_tokens,
+                )
+            }
+            UnexpectedExpr(given_strings) => {
+                let given_strings = given_strings
+                    .iter()
+                    .map(|string| string.to_owned())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                format!(
+                    "Unexpected expression: got '{}' expected {}",
+                    agent, given_strings,
+                )
             }
         };
 
@@ -766,6 +814,8 @@ impl Error for ParserError {
 }
 
 mod tests {
+    use core::panic;
+
     use super::*;
 
     #[test]
@@ -872,6 +922,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_statement_assignment() {
+        let mut parser = Parser::new(Input::String("a = 1;".to_string()));
+        let statement = parser.parse_statement().unwrap();
+
+        assert_eq!(
+            ron::to_string(&statement).unwrap(),
+            "Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))"
+        );
+    }
+
+    #[test]
     fn test_parse_next_and_end() {
         let mut parser = Parser::new(Input::String("end;next;".to_string()));
         let statements = parser.parse_program().unwrap();
@@ -887,12 +948,47 @@ mod tests {
     }
 
     #[test]
-    fn test_test() {
-        let mut parser = Parser::new(Input::String("for in".to_string()));
+    fn test_error_ident() {
+        let mut parser = Parser::new(Input::String("fn 23".to_string()));
         let result = parser.parse_program();
 
         if let Err(err) = result {
-            println!("{}", err);
+            assert_eq!(
+                err.to_string(),
+                "Syntax Error at line 1: expected identifier got '23'"
+            );
+        } else {
+            panic!("Expected error");
+        }
+    }
+
+    #[test]
+    fn test_error_stmt() {
+        let mut parser = Parser::new(Input::String("23".to_string()));
+        let result = parser.parse_program();
+
+        if let Err(err) = result {
+            assert_eq!(
+                err.to_string(),
+                "Syntax Error at line 1: Unrecognized statement started with '23', are u the syntax is correct ?"
+            );
+        } else {
+            panic!("Expected error");
+        }
+    }
+
+    #[test]
+    fn test_error_parse_iterator_expression() {
+        let mut parser = Parser::new(Input::String("1.0".to_string()));
+        let result = parser.parse_iterator_expression();
+
+        if let Err(err) = result {
+            assert_eq!(
+                err.to_string(),
+                "Syntax Error at line 1: Unexpected expression: got '1' expected factor, identifier, vector"
+            );
+        } else {
+            panic!("Expected error");
         }
     }
 

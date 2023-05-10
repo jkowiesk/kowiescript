@@ -9,11 +9,11 @@ use std::{
 
 use crate::io::{ChrIterator, Input, WHITESPACES};
 
-pub const ESCAPE_CHARACTERS: [char; 5] = ['\\', '\"', '\t', '\n', '\r'];
-
 use self::token::Token;
 
 pub mod token;
+
+pub const ESCAPE_CHARACTERS: [char; 5] = ['\\', '\"', '\t', '\n', '\r'];
 
 pub struct Lexer<'a> {
     chr_iter: Peekable<ChrIterator<'a>>,
