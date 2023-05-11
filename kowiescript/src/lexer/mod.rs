@@ -49,7 +49,9 @@ impl<'a> Lexer<'a> {
                 '-' => Ok(Token::Minus),
                 '!' => Ok(self.simple_build('=', Token::NotEqual, Token::Bang)),
                 '*' => Ok(Token::Asterisk),
-                '/' => self.slash_to_token(),
+                '/' => Ok(self
+                    .slash_to_token()?
+                    .unwrap_or_else(|| return self.next_token().unwrap())),
                 '%' => Ok(Token::Modulo),
                 '<' => Ok(self.simple_build('=', Token::LEt, Token::Lt)),
                 '>' => Ok(self.simple_build('=', Token::GEt, Token::Gt)),
@@ -95,7 +97,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn slash_to_token(&mut self) -> Result<Token, LexerError> {
+    fn slash_to_token(&mut self) -> Result<Option<Token>, LexerError> {
         if let Some('/') = self.chr_iter.peek() {
             let mut comment = String::new();
 
@@ -106,9 +108,9 @@ impl<'a> Lexer<'a> {
                 comment.push(next_chr);
             }
 
-            Ok(Token::Comment(comment))
+            Ok(None)
         } else {
-            Ok(Token::Slash)
+            Ok(Some(Token::Slash))
         }
     }
 
@@ -269,8 +271,7 @@ impl<'a> Lexer<'a> {
             self.chr_iter.next();
             identifier.push(next_chr);
         }
-
-        match identifier.as_str() {
+        let result = match identifier.as_str() {
             "let" => Ok(Token::Let),
             "const" => Ok(Token::Const),
             "true" => Ok(Token::True),
@@ -296,7 +297,13 @@ impl<'a> Lexer<'a> {
             "and" => Ok(Token::And),
             "or" => Ok(Token::Or),
             "default" => Ok(Token::Default),
-            _ => Ok(Token::Identifier(identifier)),
+            _ => Ok(Token::Identifier(identifier.clone())),
+        };
+        // check if left parenthesis right after identifier, it's a function call
+        match self.chr_iter.peek() {
+            Some('(') => Ok(Token::FnIdent(identifier)),
+            Some('[') => Ok(Token::VecAcc(identifier)),
+            _ => result,
         }
     }
 
@@ -417,10 +424,19 @@ mod tests {
 
     #[test]
     fn test_comments() {
+        let string = String::from("// this is a comment");
+        let mut lexer = Lexer::new(Input::String(string));
+        let tokens = tokenize(&mut lexer).unwrap();
+        assert_eq!(tokens, vec![Token::EOF]);
+
+        let string = String::from("// this is a comment\n");
+        let mut lexer = Lexer::new(Input::String(string));
+        let tokens = tokenize(&mut lexer).unwrap();
+        assert_eq!(tokens, vec![Token::EOF]);
+
         let string = String::from("let a = 5; // this is a comment\n");
         let mut lexer = Lexer::new(Input::String(string));
         let tokens = tokenize(&mut lexer).unwrap();
-
         assert_eq!(
             tokens,
             vec![
@@ -429,7 +445,6 @@ mod tests {
                 Token::Assign,
                 Token::Integer(5),
                 Token::Semicolon,
-                Token::Comment(String::from(" this is a comment")),
                 Token::EOF
             ]
         );
@@ -606,7 +621,6 @@ mod tests {
                 Token::In,
                 Token::Identifier("files".to_string()),
                 Token::LeftBrace,
-                Token::Comment(" do sth with file".to_string()),
                 Token::If,
                 Token::Identifier("file".to_string()),
                 Token::Equal,

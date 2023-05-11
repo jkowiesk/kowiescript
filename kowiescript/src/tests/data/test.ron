@@ -1,7 +1,7 @@
 FunctionCall(
     (
         name: "test",
-        arguments: [
+        args: [
             (
                 conjunctions: [
                     (

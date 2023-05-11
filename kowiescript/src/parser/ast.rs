@@ -1,4 +1,7 @@
-use std::ops::{Add, Div, Mul, Rem, Sub};
+use std::{
+    fmt,
+    ops::{Add, Div, Mul, Rem, Sub},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +18,7 @@ pub enum Value {
     String(String),
     Bool(bool),
     Vector(Vec<Value>),
+    Void,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -185,7 +189,7 @@ pub enum Factor {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FunctionCall {
     pub name: String,
-    pub arguments: Vec<Expression>,
+    pub args: Vec<Expression>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -213,6 +217,7 @@ pub enum IteratorExpression {
     Range(RangeExpression),
     Vector(Vector),
     Identifier(String),
+    FunctionCall(FunctionCall),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -328,6 +333,28 @@ impl Rem for Value {
                 _ => unimplemented!("Cannot modulo {:?} and {:?}", self, other),
             },
             _ => unimplemented!("Cannot modulo {:?} and {:?}", self, other),
+        }
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Int(value) => write!(f, "{}", value),
+            Value::Float(value) => write!(f, "{}", value),
+            Value::String(value) => write!(f, "{}", value),
+            Value::Bool(value) => write!(f, "{}", value),
+            Value::Vector(vector) => {
+                write!(f, "[")?;
+                for (i, value) in vector.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", value)?;
+                }
+                write!(f, "]")
+            }
+            Value::Void => write!(f, "void"),
         }
     }
 }

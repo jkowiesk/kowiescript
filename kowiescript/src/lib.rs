@@ -1,23 +1,32 @@
 use io::Input;
+use parser::ast::Statement;
 
 // Author: Jakub Kowieski
 //
 // This is the main file of the kowiescript library. It contains all imports and exports of the library.
 mod interpreter;
-mod io;
+pub mod io;
 mod lexer;
 mod parser;
 
-struct Main<'a> {
-    lexer: lexer::Lexer<'a>,
-}
+pub type Program = Vec<Statement>;
 
-impl<'a> Main<'a> {
-    fn new(input: Input) -> Main<'a> {
-        Main {
-            lexer: lexer::Lexer::new(input),
-        }
+pub fn run_program(input: Input) -> Result<(), String> {
+    let mut parser = parser::Parser::new(input);
+    let ast = parser.parse_program();
+
+    let mut program = match ast {
+        Ok(program) => program,
+        Err(err) => return Err(err.to_string()),
+    };
+
+    let mut interpreter = interpreter::Interpreter::new();
+    match interpreter.interpret_program(&program) {
+        Ok(_) => (),
+        Err(err) => return Err(err.to_string()),
     }
+
+    Ok(())
 }
 
 pub fn add(left: usize, right: usize) -> usize {

@@ -23,6 +23,8 @@ pub enum Token {
     Next,
     Default,
     Comment(String),
+    FnIdent(String),
+    VecAcc(String),
 
     And,
     Or,
@@ -129,8 +131,9 @@ impl fmt::Display for Token {
             Token::Integer(value) => write!(f, "{}", value),
             Token::Float(value) => write!(f, "{}", value),
             Token::String(ref content) => write!(f, "\"{}\"", content),
-            Token::Vector(ref content) => write!(f, "<{}>", content),
-
+            Token::Vector(ref content) => write!(f, "[{}]", content),
+            Token::FnIdent(ref name) => write!(f, "<FnIdent {}>", name),
+            Token::VecAcc(ref name) => write!(f, "<VecAcc {}>", name),
             Token::IntType => write!(f, "int"),
             Token::FloatType => write!(f, "float"),
             Token::StringType => write!(f, "string"),

@@ -9,7 +9,8 @@ statement             = variable_declaration
                       | function_statement
                       | pattern_match_stmt
                       | return_statement
-                      | comment;
+                      | comment
+                      | expression_stmt;
 
 variable_declaration  = "let" identifier "=" expression ";";
 constant_declaration  = "const" identifier "=" expression ";";
@@ -18,6 +19,7 @@ loop_statement        = "for" identifier "in" iterator_expression "{" { statemen
 conditional_statement = "if" expression "{" { statement } "}" [ "else" "{" { statement } "}" ];
 function_statement    = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
 pattern_match_stmt    = "match" expression "{" { when_branch } default_branch "}";
+expression_stmt	      = expression ";" ;
 
 comment               = "//" { character } "\n";
 

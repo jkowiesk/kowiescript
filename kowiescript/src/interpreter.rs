@@ -1,18 +1,39 @@
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, result};
 
-use crate::parser::ast::*;
+use crate::{parser::ast::*, Program};
 
-struct Interpreter {
-    pub variables: HashMap<String, Value>,
+#[derive(Debug, Clone)]
+pub struct Variable {
+    kind: VarKind,
+    value: Value,
+}
+
+pub struct Interpreter {
+    pub variables: HashMap<String, Variable>,
     pub functions: HashMap<String, Function>,
+    output: Option<String>,
 }
 
 impl Interpreter {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             variables: HashMap::new(),
             functions: HashMap::new(),
+            output: None,
         }
+    }
+
+    pub fn interpret_program(
+        &mut self,
+        program: &Program,
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        for statement in program {
+            self.interpret_statement(statement)?;
+        }
+        let output = self.output.clone();
+        self.output = None;
+
+        Ok(output)
     }
 
     fn interpret_statement(&mut self, statement: &Statement) -> Result<(), Box<dyn Error>> {
@@ -23,9 +44,20 @@ impl Interpreter {
             Statement::Assignment(assignment) => self.interpret_assignment(assignment),
             Statement::ForLoop(for_loop) => self.interpret_for_loop(for_loop),
             Statement::SubLoop(sub_loop) => self.interpret_sub_loop(sub_loop),
-            // Handle other statement types
+            Statement::Function(function) => self.interpret_function(function),
+            Statement::Expression(expression) => {
+                self.evaluate_expression(expression)?;
+                Ok(())
+            }
             _ => unimplemented!("Statement interpretation not implemented."),
         }
+    }
+
+    fn interpret_function(&mut self, function: &Function) -> Result<(), Box<dyn Error>> {
+        self.functions
+            .insert(function.name.clone(), function.clone());
+
+        Ok(())
     }
 
     fn interpret_var_declaration(
@@ -33,14 +65,21 @@ impl Interpreter {
         var_declaration: &VarDeclaration,
     ) -> Result<(), Box<dyn Error>> {
         let value = self.evaluate_expression(&var_declaration.expression)?;
-        self.variables.insert(var_declaration.name.clone(), value);
+        self.variables.insert(
+            var_declaration.name.clone(),
+            Variable {
+                kind: var_declaration.kind.clone(),
+                value,
+            },
+        );
 
         Ok(())
     }
 
     fn interpret_assignment(&mut self, assignment: &Assignment) -> Result<(), Box<dyn Error>> {
         let value = self.evaluate_expression(&assignment.expression)?;
-        self.variables.insert(assignment.name.clone(), value);
+        // TODO: Remove panic
+        self.variables.get_mut(&assignment.name).unwrap().value = value;
 
         Ok(())
     }
@@ -48,7 +87,13 @@ impl Interpreter {
     fn interpret_for_loop(&mut self, for_loop: &ForLoop) -> Result<(), Box<dyn Error>> {
         let iterable = self.evaluate_iterator_expression(&for_loop.iterator)?;
         for value in iterable {
-            self.variables.insert(for_loop.iter_var.clone(), value);
+            self.variables.insert(
+                for_loop.iter_var.clone(),
+                Variable {
+                    kind: VarKind::Mutable,
+                    value,
+                },
+            );
             for statement in &for_loop.body {
                 match statement {
                     Statement::SubLoop(sub_loop) => match sub_loop.kind {
@@ -203,11 +248,7 @@ impl Interpreter {
     fn evaluate_factor(&mut self, factor: &Factor) -> Result<Value, Box<dyn Error>> {
         match factor {
             Factor::Literal(literal) => self.evaluate_literal(literal),
-            Factor::Identifier(name) => Ok(self
-                .variables
-                .get(name)
-                .expect(&format!("Variable '{}' is not defined.", name))
-                .clone()),
+            Factor::Identifier(name) => self.evaluate_identifier(name),
             Factor::Vector(vector) => {
                 let mut values = Vec::new();
                 for expr in &vector.values {
@@ -220,6 +261,15 @@ impl Interpreter {
             Factor::VectorAccess(vector_access) => self.evaluate_vector_access(vector_access),
             Factor::Parenthesized(expression) => self.evaluate_expression(expression),
         }
+    }
+
+    fn evaluate_identifier(&mut self, name: &str) -> Result<Value, Box<dyn Error>> {
+        let var = self
+            .variables
+            .get(name)
+            .expect(&format!("Variable '{}' is not defined.", name));
+
+        Ok(var.value.clone())
     }
 
     fn evaluate_literal(&mut self, literal: &Literal) -> Result<Value, Box<dyn Error>> {
@@ -235,7 +285,60 @@ impl Interpreter {
         &mut self,
         func_call: &FunctionCall,
     ) -> Result<Value, Box<dyn Error>> {
-        unimplemented!("Function calls are not implemented yet.")
+        let name = &func_call.name;
+        let func = self
+            .functions
+            .get(name)
+            .expect(&format!("Function '{}' is not defined.", name));
+
+        let mut args = Vec::new();
+        for expr in &func_call.args {
+            args.push(self.evaluate_expression(expr)?);
+        }
+
+        self.function_call(name, &args)
+    }
+
+    fn function_call(&mut self, name: &str, args: &Vec<Value>) -> Result<Value, Box<dyn Error>> {
+        match name {
+            "print" => {
+                for arg in args {
+                    print!("{}", arg);
+                }
+                println!();
+                Ok(Value::Void)
+            }
+            _name => {
+                let func = self
+                    .functions
+                    .get(name)
+                    .expect(&format!("Function '{}' is not defined.", name));
+
+                let parent_variables = self.variables.clone();
+
+                for (i, param) in func.parameters.iter().enumerate() {
+                    self.variables.insert(
+                        param.name.clone(),
+                        Variable {
+                            kind: param.kind.clone(),
+                            value: args[i].clone(),
+                        },
+                    );
+                }
+
+                for statement in func.body.clone() {
+                    match statement {
+                        Statement::Return(ret_expr) => match ret_expr.value {
+                            Some(expr) => return self.evaluate_expression(&expr),
+                            None => return Ok(Value::Void),
+                        },
+                        _ => self.interpret_statement(&statement)?,
+                    };
+                }
+
+                Ok(Value::Void)
+            }
+        }
     }
 
     fn evaluate_vector_access(
@@ -283,8 +386,11 @@ impl Interpreter {
                 Ok(result)
             }
             IteratorExpression::Identifier(ident) => match self.variables.get(ident) {
-                Some(Value::Vector(vector)) => Ok(vector.clone()),
-                _ => unimplemented!("Cannot iterate over non-vector."),
+                Some(var) => match &var.value {
+                    Value::Vector(values) => Ok(values.clone()),
+                    _ => panic!("Cannot iterate over non-vector."),
+                },
+                None => unimplemented!("Variable doesn't exist."),
             },
             _ => unimplemented!("Iterator expression evaluation not implemented."),
         }
@@ -331,7 +437,7 @@ impl Interpreter {
                 ConversionType::String => Value::String(bool.to_string()),
                 ConversionType::Bool => Value::Bool(bool),
             },
-
+            Value::Void => unimplemented!("Void conversion is not implemented yet."),
             Value::Vector(_) => unimplemented!("Vector conversion is not implemented yet."),
         }
     }
@@ -364,6 +470,7 @@ mod tests {
         let result = interpreter.evaluate_expression(&expression).unwrap();
         assert_eq!(result, Value::Int(7));
     }
+
     #[test]
     fn test_interpret_var_declaration_statement() {
         let mut parser = Parser::new(Input::String("let a = 2 * 3 + 1;".to_string()));
@@ -371,6 +478,34 @@ mod tests {
 
         let mut interpreter = Interpreter::new();
         interpreter.interpret_statement(&statements[0]);
-        assert_eq!(interpreter.variables["a"], Value::Int(7));
+        assert_eq!(interpreter.variables["a"].value, Value::Int(7));
+    }
+
+    #[test]
+    fn test_interpret_function() {
+        let mut parser = Parser::new(Input::String("fn b(a) {}".to_string()));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        match &statements[0] {
+            Statement::Function(function) => {
+                interpreter.interpret_function(function);
+            }
+            _ => panic!("Expected function declaration."),
+        }
+
+        assert!(interpreter.functions.contains_key("b"));
+    }
+
+    #[test]
+    fn test_print() {
+        let mut parser = Parser::new(Input::String("print(3);".to_string()));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        match interpreter.interpret_statement(&statements[0]) {
+            Ok(_) => {}
+            Err(err) => panic!("Error: {}", err),
+        }
     }
 }
