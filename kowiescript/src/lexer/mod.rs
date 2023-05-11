@@ -38,7 +38,7 @@ impl<'a> Lexer<'a> {
         if let Some(token) = self.peeked.take() {
             self.cur_token = Some(token.clone());
 
-            println!("peeked token: {:?}", token);
+            // println!("peeked token: {:?}", token);
             return Ok(token);
         }
 
@@ -72,7 +72,7 @@ impl<'a> Lexer<'a> {
             None => Ok(Token::EOF),
         };
 
-        println!("token: {:?}", token);
+        // println!("token: {:?}", token);
 
         if let Ok(cur_token) = &token {
             self.cur_token = Some(cur_token.clone());

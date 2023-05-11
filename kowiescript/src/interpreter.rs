@@ -36,7 +36,7 @@ impl Interpreter {
         Ok(output)
     }
 
-    fn interpret_statement(&mut self, statement: &Statement) -> Result<(), Box<dyn Error>> {
+    pub fn interpret_statement(&mut self, statement: &Statement) -> Result<(), Box<dyn Error>> {
         match statement {
             Statement::VarDeclaration(var_declaration) => {
                 self.interpret_var_declaration(var_declaration)
@@ -286,10 +286,6 @@ impl Interpreter {
         func_call: &FunctionCall,
     ) -> Result<Value, Box<dyn Error>> {
         let name = &func_call.name;
-        let func = self
-            .functions
-            .get(name)
-            .expect(&format!("Function '{}' is not defined.", name));
 
         let mut args = Vec::new();
         for expr in &func_call.args {
@@ -364,7 +360,7 @@ impl Interpreter {
                     }
                     _ => panic!("Cannot iterate over non-int range."),
                 };
-                let end = match self.evaluate_factor(&range.start)? {
+                let end = match self.evaluate_factor(&range.end)? {
                     Value::Int(value) => {
                         if value < 0 {
                             0
@@ -499,13 +495,35 @@ mod tests {
 
     #[test]
     fn test_print() {
-        let mut parser = Parser::new(Input::String("print(3);".to_string()));
+        let mut parser = Parser::new(Input::String("print(2 + 1);".to_string()));
         let statements = parser.parse_program().unwrap();
 
         let mut interpreter = Interpreter::new();
         match interpreter.interpret_statement(&statements[0]) {
             Ok(_) => {}
             Err(err) => panic!("Error: {}", err),
+        }
+    }
+    #[test]
+    fn test_fn_print() {
+        let mut parser = Parser::new(Input::String(
+            "fn show(a) { print(a); } show(\"c\");".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        match &statements[0] {
+            Statement::Function(function) => {
+                interpreter.interpret_function(function).unwrap();
+            }
+            _ => panic!("Expected function declaration."),
+        }
+
+        match &statements[1] {
+            Statement::Expression(expression) => {
+                interpreter.evaluate_expression(expression).unwrap();
+            }
+            _ => panic!("Expected expression statement."),
         }
     }
 }

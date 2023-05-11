@@ -1,5 +1,8 @@
+use std::io::{BufRead, Read};
+
+use interpreter::Interpreter;
 use io::Input;
-use parser::ast::Statement;
+use parser::{ast::Statement, Parser};
 
 // Author: Jakub Kowieski
 //
@@ -29,17 +32,32 @@ pub fn run_program(input: Input) -> Result<(), String> {
     Ok(())
 }
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+pub fn interpret() -> Result<(), String> {
+    let mut interpreter = Interpreter::new();
+    let stdin = std::io::stdin();
+    let input = stdin.lock();
+    let mut lines = input.lines();
+
+    loop {
+        if let Some(Ok(line)) = lines.next() {
+            if line.trim() == "exit" {
+                break;
+            }
+
+            let mut parser = Parser::new(Input::String(line));
+            let ast = parser.parse_program().unwrap_or_else(|err| {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            });
+
+            interpreter.interpret_program(&ast);
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
 }

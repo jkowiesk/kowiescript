@@ -69,7 +69,7 @@ impl<'a> Parser<'a> {
     | return_statement
     | pattern_match_stmt
     | expression_stmt;  */
-    fn parse_statement(&mut self) -> Result<Statement, Box<dyn Error>> {
+    pub fn parse_statement(&mut self) -> Result<Statement, Box<dyn Error>> {
         let statement = self
             .parse_var_declaration()
             .transpose()
@@ -715,81 +715,122 @@ impl<'a> Parser<'a> {
     | vector_access
     | "(" expression ")"; */
     fn parse_factor(&mut self) -> Result<Factor, Box<dyn Error>> {
+        let factor = self
+            .parse_literal()
+            .transpose()
+            .or_else(|| self.parse_identifier().transpose())
+            .or_else(|| self.parse_vector_factor().transpose())
+            .or_else(|| self.parse_fun_call_or_vec_acc().transpose())
+            .or_else(|| self.parse_vector_access_ident().transpose())
+            .or_else(|| self.parse_paren_expression().transpose())
+            .transpose();
+
+        match factor {
+            Ok(Some(factor)) => Ok(factor),
+            Ok(None) => panic!("expected factor"),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn parse_literal(&mut self) -> Result<Option<Factor>, Box<dyn Error>> {
         match self.lexer.peek_token()? {
             Token::Integer(i) => {
                 self.lexer.next_token()?;
-                Ok(Factor::Literal(Literal::Int(i)))
+                Ok(Some(Factor::Literal(Literal::Int(i))))
             }
             Token::Float(f) => {
                 self.lexer.next_token()?;
-                Ok(Factor::Literal(Literal::Float(f)))
+                Ok(Some(Factor::Literal(Literal::Float(f))))
             }
             Token::String(string) => {
                 self.lexer.next_token()?;
-                Ok(Factor::Literal(Literal::String(string)))
+                Ok(Some(Factor::Literal(Literal::String(string))))
             }
-            Token::LeftBracket => Ok(Factor::Vector(self.parse_vector()?)),
-            Token::Identifier(_) => self.parse_identifier(),
-            Token::FnIdent(name) => Ok(Factor::FunctionCall(self.parse_function_call(name)?)),
-            Token::VecAcc(name) => self.parse_vector_access(name),
-            Token::LeftParen => self.parse_paren_expression(),
-            _ => panic!("expected factor, got {:?}", self.lexer.peek_token()?),
+            _ => Ok(None),
         }
     }
 
-    fn parse_identifier(&mut self) -> Result<Factor, Box<dyn Error>> {
-        let token = self.lexer.next_token()?;
-        let ident = match token {
-            Token::Identifier(ident) => ident,
-            _ => panic!("expected identifier, got {:?}", token),
-        };
-
-        Ok(Factor::Identifier(ident))
+    fn parse_identifier(&mut self) -> Result<Option<Factor>, Box<dyn Error>> {
+        match self.lexer.peek_token()? {
+            Token::Identifier(_) => {
+                let token = self.lexer.next_token()?;
+                let ident = match token {
+                    Token::Identifier(ident) => ident,
+                    _ => panic!("expected identifier, got {:?}", token),
+                };
+                Ok(Some(Factor::Identifier(ident)))
+            }
+            _ => Ok(None),
+        }
     }
 
-    // vector_access = (identifier | function_call) "[" expression "]";
-    fn parse_vector_access(&mut self, ident: String) -> Result<Factor, Box<dyn Error>> {
-        let vector_expr = match self.lexer.peek_token()? {
-            Token::FnIdent(ident) => VectorExpr::Identifier(ident),
-            Token::LeftBrace => VectorExpr::FunctionCall(self.parse_function_call(ident)?),
-            _ => panic!(
-                "expected identifier or function call, got {:?}",
-                self.lexer.peek_token()?
-            ),
+    fn parse_vector_factor(&mut self) -> Result<Option<Factor>, Box<dyn Error>> {
+        if let Token::LeftBracket = self.lexer.peek_token()? {
+            Ok(Some(Factor::Vector(self.parse_vector()?)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    // vector_access_ident = identifier "[" expression "]";
+    fn parse_vector_access_ident(&mut self) -> Result<Option<Factor>, Box<dyn Error>> {
+        let ident = match self.lexer.peek_token()? {
+            Token::VecAcc(ident) => ident,
+            _ => return Ok(None),
         };
 
-        match self.lexer.next_token()? {
-            Token::LeftBracket => (),
-            _token => panic!("expected '[', got {:?}", _token),
-        }
+        self.lexer.next_token()?; // consume the identifier token
+        self.parse_token(Token::LeftBracket)?;
+
         let index = self.parse_expression()?;
 
-        match self.lexer.next_token()? {
-            Token::RightBracket => (),
-            _token => panic!("expected ']', got {:?}", _token),
-        }
+        self.parse_token(Token::RightBracket)?;
 
-        Ok(Factor::VectorAccess(VectorAccess { vector_expr, index }))
+        Ok(Some(Factor::VectorAccess(VectorAccess {
+            vector_expr: VectorExpr::Identifier(ident),
+            index,
+        })))
     }
 
-    // function_call = identifier "(" [ argument_list ] ")";
-    fn parse_function_call(&mut self, ident: String) -> Result<FunctionCall, Box<dyn Error>> {
-        self.lexer.next_token()?;
-        self.parse_token(Token::LeftParen)?;
+    // fun_call_or_vec_acc = identifier "(" [ argument_list ] ")" [ "[" expression "]" ];
+    fn parse_fun_call_or_vec_acc(&mut self) -> Result<Option<Factor>, Box<dyn Error>> {
+        let fun_call = match self.lexer.peek_token()? {
+            Token::FnIdent(name) => {
+                self.lexer.next_token()?; // consume the FnIdent token
+                self.parse_token(Token::LeftParen)?;
 
-        let args = self.parse_arguments()?;
+                let args = self.parse_arguments()?;
 
-        self.parse_token(Token::RightParen)?;
+                self.parse_token(Token::RightParen)?;
+                FunctionCall { name, args }
+            }
+            _ => return Ok(None),
+        };
 
-        Ok(FunctionCall { name: ident, args })
+        if self.lexer.peek_token()? == Token::LeftBracket {
+            self.lexer.next_token()?;
+            let index = self.parse_expression()?;
+            self.parse_token(Token::RightBracket)?;
+            Ok(Some(Factor::VectorAccess(VectorAccess {
+                vector_expr: VectorExpr::FunctionCall(fun_call),
+                index,
+            })))
+        } else {
+            Ok(Some(Factor::FunctionCall(fun_call)))
+        }
     }
 
     // "(" expression ")";
-    fn parse_paren_expression(&mut self) -> Result<Factor, Box<dyn Error>> {
-        self.lexer.next_token()?;
-        let expression = self.parse_expression()?;
-        self.lexer.next_token()?;
-        Ok(Factor::Parenthesized(expression))
+    fn parse_paren_expression(&mut self) -> Result<Option<Factor>, Box<dyn Error>> {
+        match self.lexer.peek_token()? {
+            Token::LeftParen => {
+                self.lexer.next_token()?; // consume the LeftParen token
+                let expression = self.parse_expression()?;
+                self.lexer.next_token()?;
+                Ok(Some(Factor::Parenthesized(expression)))
+            }
+            _ => Ok(None),
+        }
     }
 
     fn parse_token(&mut self, expected_token: Token) -> Result<(), Box<dyn Error>> {
@@ -1049,17 +1090,25 @@ mod tests {
     #[test]
     fn test_parse_starts_ident_function_call() {
         let mut parser = Parser::new(Input::String("test(1, 2, 3)".to_string()));
-        // let starts_ident = parser.parse_function_call().unwrap();
+        let starts_ident = parser.parse_fun_call_or_vec_acc().unwrap().unwrap();
 
-        // assert_eq!(ron::to_string(&starts_ident).unwrap(), "FunctionCall((name:\"test\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])]))");
+        assert_eq!(ron::to_string(&starts_ident).unwrap(), "FunctionCall((name:\"test\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])]))");
     }
 
     #[test]
     fn test_parse_function_call_stmt() {
-        let mut parser = Parser::new(Input::String("test(1, 2);".to_string()));
+        let mut parser = Parser::new(Input::String("print(12);".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        println!("{}", ron::to_string(&statement).unwrap());
+        assert_eq!(ron::to_string(&statement).unwrap(), "Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(12)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))")
+    }
+
+    #[test]
+    fn test_parse_function_call_vec_acc_factor() {
+        let mut parser = Parser::new(Input::String("test(12)[2];".to_string()));
+        let vec_acc = parser.parse_fun_call_or_vec_acc().unwrap().unwrap();
+
+        assert_eq!(ron::to_string(&vec_acc).unwrap(), "VectorAccess((vector_expr:FunctionCall((name:\"test\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(12)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),index:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))")
     }
 
     #[test]

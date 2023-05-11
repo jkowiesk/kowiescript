@@ -1,0 +1,1 @@
+Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:"print",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(12)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))

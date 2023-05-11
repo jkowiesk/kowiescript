@@ -47,18 +47,18 @@ inversion             = ["!"] factor;
 factor                = literal
                       | identifier
                       | vector
-                      | function_call
-                      | vector_access
+                      | fun_call_or_vec_acc
+                      | vector_access_ident
                       | "(" expression ")";
 
-function_call         = identifier "(" [ argument_list ] ")";
+fun_call_or_vec_acc   = identifier "(" [ argument_list ] ")" [ "[" expression "]" ];
 parameter_list        = parameter { "," parameter };
 parameter             = ["const"] identifier;
 argument_list         = expression { "," expression };
 
 range_factor          = natural_number | identifier;
 
-vector_access         = (identifier | function_call) "[" expression "]";
+vector_access_ident   = identifier "[" expression "]";
 
 cast_operator         = "as";
 
