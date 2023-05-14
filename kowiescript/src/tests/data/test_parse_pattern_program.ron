@@ -1,0 +1,383 @@
+[
+    VarDeclaration(
+        (
+            name: "how",
+            kind: Mutable,
+            expression: (
+                conjunctions: [
+                    (
+                        relations: [
+                            (
+                                lhs: (
+                                    terms: [
+                                        (
+                                            conversions: [
+                                                (
+                                                    inversion: (
+                                                        value: Literal(
+                                                            String(
+                                                                "well",
+                                                            ),
+                                                        ),
+                                                        negated: false,
+                                                    ),
+                                                    to: None,
+                                                ),
+                                            ],
+                                            ops: [
+                                            ],
+                                        ),
+                                    ],
+                                    ops: [],
+                                ),
+                                op: None,
+                                rhs: None,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ),
+    ),
+    PatternMatch(
+        (
+            expression: (
+                conjunctions: [
+                    (
+                        relations: [
+                            (
+                                lhs: (
+                                    terms: [
+                                        (
+                                            conversions: [
+                                                (
+                                                    inversion: (
+                                                        value: Identifier(
+                                                            "how",
+                                                        ),
+                                                        negated: false,
+                                                    ),
+                                                    to: None,
+                                                ),
+                                            ],
+                                            ops: [
+                                            ],
+                                        ),
+                                    ],
+                                    ops: [],
+                                ),
+                                op: None,
+                                rhs: None,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            when_branches: [
+                (
+                    pattern: (
+                        simple_exprs: [
+                            (
+                                terms: [
+                                    (
+                                        conversions: [
+                                            (
+                                                inversion: (
+                                                    value: Literal(
+                                                        String(
+                                                            "bad",
+                                                        ),
+                                                    ),
+                                                    negated: false,
+                                                ),
+                                                to: None,
+                                            ),
+                                        ],
+                                        ops: [],
+                                    ),
+                                ],
+                                ops: [],
+                            ),
+                            (
+                                terms: [
+                                    (
+                                        conversions: [
+                                            (
+                                                inversion: (
+                                                    value: Literal(
+                                                        String(
+                                                            "awfull",
+                                                        ),
+                                                    ),
+                                                    negated: false,
+                                                ),
+                                                to: None,
+                                            ),
+                                        ],
+                                        ops: [],
+                                    ),
+                                ],
+                                ops: [],
+                            ),
+                        ],
+                    ),
+                    body: [
+                        Expression(
+                            (
+                                conjunctions: [
+                                    (
+                                        relations: [
+                                            (
+                                                lhs: (
+                                                    terms: [
+                                                        (
+                                                            conversions: [
+                                                                (
+                                                                    inversion: (
+                                                                        value: FunctionCall(
+                                                                            (
+                                                                                name: "print",
+                                                                                args: [
+                                                                                    (
+                                                                                        conjunctions: [
+                                                                                            (
+                                                                                                relations: [
+                                                                                                    (
+                                                                                                        lhs: (
+                                                                                                            terms: [
+                                                                                                                (
+                                                                                                                    conversions: [
+                                                                                                                        (
+                                                                                                                            inversion: (
+                                                                                                                                value: Literal(
+                                                                                                                                    String(
+                                                                                                                                        "Not good at all :(",
+                                                                                                                                    ),
+                                                                                                                                ),
+                                                                                                                                negated: false,
+                                                                                                                            ),
+                                                                                                                            to: None,
+                                                                                                                        ),
+                                                                                                                    ],
+                                                                                                                    ops: [
+                                                                                                                    ],
+                                                                                                                ),
+                                                                                                            ],
+                                                                                                            ops: [
+                                                                                                            ],
+                                                                                                        ),
+                                                                                                        op: None,
+                                                                                                        rhs: None,
+                                                                                                    ),
+                                                                                                ],
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ),
+                                                                        negated: false,
+                                                                    ),
+                                                                    to: None,
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                    ],
+                                                    ops: [
+                                                    ],
+                                                ),
+                                                op: None,
+                                                rhs: None,
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ),
+                    ],
+                ),
+                (
+                    pattern: (
+                        simple_exprs: [
+                            (
+                                terms: [
+                                    (
+                                        conversions: [
+                                            (
+                                                inversion: (
+                                                    value: Literal(
+                                                        String(
+                                                            "well",
+                                                        ),
+                                                    ),
+                                                    negated: false,
+                                                ),
+                                                to: None,
+                                            ),
+                                        ],
+                                        ops: [],
+                                    ),
+                                ],
+                                ops: [],
+                            ),
+                        ],
+                    ),
+                    body: [
+                        Expression(
+                            (
+                                conjunctions: [
+                                    (
+                                        relations: [
+                                            (
+                                                lhs: (
+                                                    terms: [
+                                                        (
+                                                            conversions: [
+                                                                (
+                                                                    inversion: (
+                                                                        value: FunctionCall(
+                                                                            (
+                                                                                name: "print",
+                                                                                args: [
+                                                                                    (
+                                                                                        conjunctions: [
+                                                                                            (
+                                                                                                relations: [
+                                                                                                    (
+                                                                                                        lhs: (
+                                                                                                            terms: [
+                                                                                                                (
+                                                                                                                    conversions: [
+                                                                                                                        (
+                                                                                                                            inversion: (
+                                                                                                                                value: Literal(
+                                                                                                                                    String(
+                                                                                                                                        "Great success !!!",
+                                                                                                                                    ),
+                                                                                                                                ),
+                                                                                                                                negated: false,
+                                                                                                                            ),
+                                                                                                                            to: None,
+                                                                                                                        ),
+                                                                                                                    ],
+                                                                                                                    ops: [
+                                                                                                                    ],
+                                                                                                                ),
+                                                                                                            ],
+                                                                                                            ops: [
+                                                                                                            ],
+                                                                                                        ),
+                                                                                                        op: None,
+                                                                                                        rhs: None,
+                                                                                                    ),
+                                                                                                ],
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ),
+                                                                        negated: false,
+                                                                    ),
+                                                                    to: None,
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                    ],
+                                                    ops: [
+                                                    ],
+                                                ),
+                                                op: None,
+                                                rhs: None,
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ),
+                    ],
+                ),
+            ],
+            default_branch: [
+                Expression(
+                    (
+                        conjunctions: [
+                            (
+                                relations: [
+                                    (
+                                        lhs: (
+                                            terms: [
+                                                (
+                                                    conversions: [
+                                                        (
+                                                            inversion: (
+                                                                value: FunctionCall(
+                                                                    (
+                                                                        name: "print",
+                                                                        args: [
+                                                                            (
+                                                                                conjunctions: [
+                                                                                    (
+                                                                                        relations: [
+                                                                                            (
+                                                                                                lhs: (
+                                                                                                    terms: [
+                                                                                                        (
+                                                                                                            conversions: [
+                                                                                                                (
+                                                                                                                    inversion: (
+                                                                                                                        value: Literal(
+                                                                                                                            String(
+                                                                                                                                "What ???",
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        negated: false,
+                                                                                                                    ),
+                                                                                                                    to: None,
+                                                                                                                ),
+                                                                                                            ],
+                                                                                                            ops: [
+                                                                                                            ],
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                    ops: [
+                                                                                                    ],
+                                                                                                ),
+                                                                                                op: None,
+                                                                                                rhs: None,
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ),
+                                                                negated: false,
+                                                            ),
+                                                            to: None,
+                                                        ),
+                                                    ],
+                                                    ops: [
+                                                    ],
+                                                ),
+                                            ],
+                                            ops: [
+                                            ],
+                                        ),
+                                        op: None,
+                                        rhs: None,
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ),
+            ],
+        ),
+    ),
+]

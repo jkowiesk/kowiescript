@@ -1,0 +1,979 @@
+[
+    Function(
+        (
+            name: "starts_with_vowel",
+            parameters: [
+                (
+                    name: "word",
+                    kind: Mutable,
+                ),
+            ],
+            body: [
+                VarDeclaration(
+                    (
+                        name: "first_leteter",
+                        kind: Constant,
+                        expression: (
+                            conjunctions: [
+                                (
+                                    relations: [
+                                        (
+                                            lhs: (
+                                                terms: [
+                                                    (
+                                                        conversions: [
+                                                            (
+                                                                inversion: (
+                                                                    value: VectorAccess(
+                                                                        (
+                                                                            vector_expr: Identifier(
+                                                                                "word",
+                                                                            ),
+                                                                            index: (
+                                                                                conjunctions: [
+                                                                                    (
+                                                                                        relations: [
+                                                                                            (
+                                                                                                lhs: (
+                                                                                                    terms: [
+                                                                                                        (
+                                                                                                            conversions: [
+                                                                                                                (
+                                                                                                                    inversion: (
+                                                                                                                        value: Literal(
+                                                                                                                            Int(
+                                                                                                                                0,
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        negated: false,
+                                                                                                                    ),
+                                                                                                                    to: None,
+                                                                                                                ),
+                                                                                                            ],
+                                                                                                            ops: [
+                                                                                                            ],
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                    ops: [
+                                                                                                    ],
+                                                                                                ),
+                                                                                                op: None,
+                                                                                                rhs: None,
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ),
+                                                                    ),
+                                                                    negated: false,
+                                                                ),
+                                                                to: None,
+                                                            ),
+                                                        ],
+                                                        ops: [
+                                                        ],
+                                                    ),
+                                                ],
+                                                ops: [
+                                                ],
+                                            ),
+                                            op: None,
+                                            rhs: None,
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ),
+                ),
+                ForLoop(
+                    (
+                        iter_var: "vowel",
+                        iterator: Vector(
+                            (
+                                values: [
+                                    (
+                                        conjunctions: [
+                                            (
+                                                relations: [
+                                                    (
+                                                        lhs: (
+                                                            terms: [
+                                                                (
+                                                                    conversions: [
+                                                                        (
+                                                                            inversion: (
+                                                                                value: Literal(
+                                                                                    String(
+                                                                                        "a",
+                                                                                    ),
+                                                                                ),
+                                                                                negated: false,
+                                                                            ),
+                                                                            to: None,
+                                                                        ),
+                                                                    ],
+                                                                    ops: [
+                                                                    ],
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                        op: None,
+                                                        rhs: None,
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                    (
+                                        conjunctions: [
+                                            (
+                                                relations: [
+                                                    (
+                                                        lhs: (
+                                                            terms: [
+                                                                (
+                                                                    conversions: [
+                                                                        (
+                                                                            inversion: (
+                                                                                value: Literal(
+                                                                                    String(
+                                                                                        "e",
+                                                                                    ),
+                                                                                ),
+                                                                                negated: false,
+                                                                            ),
+                                                                            to: None,
+                                                                        ),
+                                                                    ],
+                                                                    ops: [
+                                                                    ],
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                        op: None,
+                                                        rhs: None,
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                    (
+                                        conjunctions: [
+                                            (
+                                                relations: [
+                                                    (
+                                                        lhs: (
+                                                            terms: [
+                                                                (
+                                                                    conversions: [
+                                                                        (
+                                                                            inversion: (
+                                                                                value: Literal(
+                                                                                    String(
+                                                                                        "i",
+                                                                                    ),
+                                                                                ),
+                                                                                negated: false,
+                                                                            ),
+                                                                            to: None,
+                                                                        ),
+                                                                    ],
+                                                                    ops: [
+                                                                    ],
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                        op: None,
+                                                        rhs: None,
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                    (
+                                        conjunctions: [
+                                            (
+                                                relations: [
+                                                    (
+                                                        lhs: (
+                                                            terms: [
+                                                                (
+                                                                    conversions: [
+                                                                        (
+                                                                            inversion: (
+                                                                                value: Literal(
+                                                                                    String(
+                                                                                        "o",
+                                                                                    ),
+                                                                                ),
+                                                                                negated: false,
+                                                                            ),
+                                                                            to: None,
+                                                                        ),
+                                                                    ],
+                                                                    ops: [
+                                                                    ],
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                        op: None,
+                                                        rhs: None,
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                    (
+                                        conjunctions: [
+                                            (
+                                                relations: [
+                                                    (
+                                                        lhs: (
+                                                            terms: [
+                                                                (
+                                                                    conversions: [
+                                                                        (
+                                                                            inversion: (
+                                                                                value: Literal(
+                                                                                    String(
+                                                                                        "u",
+                                                                                    ),
+                                                                                ),
+                                                                                negated: false,
+                                                                            ),
+                                                                            to: None,
+                                                                        ),
+                                                                    ],
+                                                                    ops: [
+                                                                    ],
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                        op: None,
+                                                        rhs: None,
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ),
+                        body: [
+                            Conditional(
+                                (
+                                    condition: (
+                                        conjunctions: [
+                                            (
+                                                relations: [
+                                                    (
+                                                        lhs: (
+                                                            terms: [
+                                                                (
+                                                                    conversions: [
+                                                                        (
+                                                                            inversion: (
+                                                                                value: Identifier(
+                                                                                    "first_letter",
+                                                                                ),
+                                                                                negated: false,
+                                                                            ),
+                                                                            to: None,
+                                                                        ),
+                                                                    ],
+                                                                    ops: [
+                                                                    ],
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                        op: Some(
+                                                            Equal,
+                                                        ),
+                                                        rhs: Some(
+                                                            (
+                                                                terms: [
+                                                                    (
+                                                                        conversions: [
+                                                                            (
+                                                                                inversion: (
+                                                                                    value: Identifier(
+                                                                                        "vowel",
+                                                                                    ),
+                                                                                    negated: false,
+                                                                                ),
+                                                                                to: None,
+                                                                            ),
+                                                                        ],
+                                                                        ops: [
+                                                                        ],
+                                                                    ),
+                                                                ],
+                                                                ops: [
+                                                                ],
+                                                            ),
+                                                        ),
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                    then_body: [
+                                        Return(
+                                            (
+                                                value: Some(
+                                                    (
+                                                        conjunctions: [
+                                                            (
+                                                                relations: [
+                                                                    (
+                                                                        lhs: (
+                                                                            terms: [
+                                                                                (
+                                                                                    conversions: [
+                                                                                        (
+                                                                                            inversion: (
+                                                                                                value: Literal(
+                                                                                                    Bool(
+                                                                                                        true,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                negated: false,
+                                                                                            ),
+                                                                                            to: None,
+                                                                                        ),
+                                                                                    ],
+                                                                                    ops: [
+                                                                                    ],
+                                                                                ),
+                                                                            ],
+                                                                            ops: [
+                                                                            ],
+                                                                        ),
+                                                                        op: None,
+                                                                        rhs: None,
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                    ],
+                                    else_body: None,
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+                Return(
+                    (
+                        value: Some(
+                            (
+                                conjunctions: [
+                                    (
+                                        relations: [
+                                            (
+                                                lhs: (
+                                                    terms: [
+                                                        (
+                                                            conversions: [
+                                                                (
+                                                                    inversion: (
+                                                                        value: Literal(
+                                                                            Bool(
+                                                                                false,
+                                                                            ),
+                                                                        ),
+                                                                        negated: false,
+                                                                    ),
+                                                                    to: None,
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                    ],
+                                                    ops: [
+                                                    ],
+                                                ),
+                                                op: None,
+                                                rhs: None,
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ),
+                    ),
+                ),
+            ],
+        ),
+    ),
+    VarDeclaration(
+        (
+            name: "words",
+            kind: Mutable,
+            expression: (
+                conjunctions: [
+                    (
+                        relations: [
+                            (
+                                lhs: (
+                                    terms: [
+                                        (
+                                            conversions: [
+                                                (
+                                                    inversion: (
+                                                        value: Vector(
+                                                            (
+                                                                values: [
+                                                                    (
+                                                                        conjunctions: [
+                                                                            (
+                                                                                relations: [
+                                                                                    (
+                                                                                        lhs: (
+                                                                                            terms: [
+                                                                                                (
+                                                                                                    conversions: [
+                                                                                                        (
+                                                                                                            inversion: (
+                                                                                                                value: Literal(
+                                                                                                                    String(
+                                                                                                                        "apple",
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                negated: false,
+                                                                                                            ),
+                                                                                                            to: None,
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                    ops: [
+                                                                                                    ],
+                                                                                                ),
+                                                                                            ],
+                                                                                            ops: [
+                                                                                            ],
+                                                                                        ),
+                                                                                        op: None,
+                                                                                        rhs: None,
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                    (
+                                                                        conjunctions: [
+                                                                            (
+                                                                                relations: [
+                                                                                    (
+                                                                                        lhs: (
+                                                                                            terms: [
+                                                                                                (
+                                                                                                    conversions: [
+                                                                                                        (
+                                                                                                            inversion: (
+                                                                                                                value: Literal(
+                                                                                                                    String(
+                                                                                                                        "cat",
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                negated: false,
+                                                                                                            ),
+                                                                                                            to: None,
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                    ops: [
+                                                                                                    ],
+                                                                                                ),
+                                                                                            ],
+                                                                                            ops: [
+                                                                                            ],
+                                                                                        ),
+                                                                                        op: None,
+                                                                                        rhs: None,
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                    (
+                                                                        conjunctions: [
+                                                                            (
+                                                                                relations: [
+                                                                                    (
+                                                                                        lhs: (
+                                                                                            terms: [
+                                                                                                (
+                                                                                                    conversions: [
+                                                                                                        (
+                                                                                                            inversion: (
+                                                                                                                value: Literal(
+                                                                                                                    String(
+                                                                                                                        "dog",
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                negated: false,
+                                                                                                            ),
+                                                                                                            to: None,
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                    ops: [
+                                                                                                    ],
+                                                                                                ),
+                                                                                            ],
+                                                                                            ops: [
+                                                                                            ],
+                                                                                        ),
+                                                                                        op: None,
+                                                                                        rhs: None,
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                    (
+                                                                        conjunctions: [
+                                                                            (
+                                                                                relations: [
+                                                                                    (
+                                                                                        lhs: (
+                                                                                            terms: [
+                                                                                                (
+                                                                                                    conversions: [
+                                                                                                        (
+                                                                                                            inversion: (
+                                                                                                                value: Literal(
+                                                                                                                    String(
+                                                                                                                        "egg",
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                negated: false,
+                                                                                                            ),
+                                                                                                            to: None,
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                    ops: [
+                                                                                                    ],
+                                                                                                ),
+                                                                                            ],
+                                                                                            ops: [
+                                                                                            ],
+                                                                                        ),
+                                                                                        op: None,
+                                                                                        rhs: None,
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                    (
+                                                                        conjunctions: [
+                                                                            (
+                                                                                relations: [
+                                                                                    (
+                                                                                        lhs: (
+                                                                                            terms: [
+                                                                                                (
+                                                                                                    conversions: [
+                                                                                                        (
+                                                                                                            inversion: (
+                                                                                                                value: Literal(
+                                                                                                                    String(
+                                                                                                                        "fish",
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                negated: false,
+                                                                                                            ),
+                                                                                                            to: None,
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                    ops: [
+                                                                                                    ],
+                                                                                                ),
+                                                                                            ],
+                                                                                            ops: [
+                                                                                            ],
+                                                                                        ),
+                                                                                        op: None,
+                                                                                        rhs: None,
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                    (
+                                                                        conjunctions: [
+                                                                            (
+                                                                                relations: [
+                                                                                    (
+                                                                                        lhs: (
+                                                                                            terms: [
+                                                                                                (
+                                                                                                    conversions: [
+                                                                                                        (
+                                                                                                            inversion: (
+                                                                                                                value: Literal(
+                                                                                                                    String(
+                                                                                                                        "sheep",
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                negated: false,
+                                                                                                            ),
+                                                                                                            to: None,
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                    ops: [
+                                                                                                    ],
+                                                                                                ),
+                                                                                            ],
+                                                                                            ops: [
+                                                                                            ],
+                                                                                        ),
+                                                                                        op: None,
+                                                                                        rhs: None,
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                        ),
+                                                        negated: false,
+                                                    ),
+                                                    to: None,
+                                                ),
+                                            ],
+                                            ops: [
+                                            ],
+                                        ),
+                                    ],
+                                    ops: [],
+                                ),
+                                op: None,
+                                rhs: None,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ),
+    ),
+    VarDeclaration(
+        (
+            name: "vowel_words",
+            kind: Mutable,
+            expression: (
+                conjunctions: [
+                    (
+                        relations: [
+                            (
+                                lhs: (
+                                    terms: [
+                                        (
+                                            conversions: [
+                                                (
+                                                    inversion: (
+                                                        value: Vector(
+                                                            (
+                                                                values: [
+                                                                ],
+                                                            ),
+                                                        ),
+                                                        negated: false,
+                                                    ),
+                                                    to: None,
+                                                ),
+                                            ],
+                                            ops: [
+                                            ],
+                                        ),
+                                    ],
+                                    ops: [],
+                                ),
+                                op: None,
+                                rhs: None,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ),
+    ),
+    ForLoop(
+        (
+            iter_var: "word",
+            iterator: Identifier("words"),
+            body: [
+                Conditional(
+                    (
+                        condition: (
+                            conjunctions: [
+                                (
+                                    relations: [
+                                        (
+                                            lhs: (
+                                                terms: [
+                                                    (
+                                                        conversions: [
+                                                            (
+                                                                inversion: (
+                                                                    value: FunctionCall(
+                                                                        (
+                                                                            name: "starts_with_vowel",
+                                                                            args: [
+                                                                                (
+                                                                                    conjunctions: [
+                                                                                        (
+                                                                                            relations: [
+                                                                                                (
+                                                                                                    lhs: (
+                                                                                                        terms: [
+                                                                                                            (
+                                                                                                                conversions: [
+                                                                                                                    (
+                                                                                                                        inversion: (
+                                                                                                                            value: Identifier(
+                                                                                                                                "word",
+                                                                                                                            ),
+                                                                                                                            negated: false,
+                                                                                                                        ),
+                                                                                                                        to: None,
+                                                                                                                    ),
+                                                                                                                ],
+                                                                                                                ops: [
+                                                                                                                ],
+                                                                                                            ),
+                                                                                                        ],
+                                                                                                        ops: [
+                                                                                                        ],
+                                                                                                    ),
+                                                                                                    op: None,
+                                                                                                    rhs: None,
+                                                                                                ),
+                                                                                            ],
+                                                                                        ),
+                                                                                    ],
+                                                                                ),
+                                                                            ],
+                                                                        ),
+                                                                    ),
+                                                                    negated: false,
+                                                                ),
+                                                                to: None,
+                                                            ),
+                                                        ],
+                                                        ops: [
+                                                        ],
+                                                    ),
+                                                ],
+                                                ops: [
+                                                ],
+                                            ),
+                                            op: None,
+                                            rhs: None,
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        then_body: [
+                            Expression(
+                                (
+                                    conjunctions: [
+                                        (
+                                            relations: [
+                                                (
+                                                    lhs: (
+                                                        terms: [
+                                                            (
+                                                                conversions: [
+                                                                    (
+                                                                        inversion: (
+                                                                            value: FunctionCall(
+                                                                                (
+                                                                                    name: "push",
+                                                                                    args: [
+                                                                                        (
+                                                                                            conjunctions: [
+                                                                                                (
+                                                                                                    relations: [
+                                                                                                        (
+                                                                                                            lhs: (
+                                                                                                                terms: [
+                                                                                                                    (
+                                                                                                                        conversions: [
+                                                                                                                            (
+                                                                                                                                inversion: (
+                                                                                                                                    value: Identifier(
+                                                                                                                                        "vowel_words",
+                                                                                                                                    ),
+                                                                                                                                    negated: false,
+                                                                                                                                ),
+                                                                                                                                to: None,
+                                                                                                                            ),
+                                                                                                                        ],
+                                                                                                                        ops: [
+                                                                                                                        ],
+                                                                                                                    ),
+                                                                                                                ],
+                                                                                                                ops: [
+                                                                                                                ],
+                                                                                                            ),
+                                                                                                            op: None,
+                                                                                                            rhs: None,
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                ),
+                                                                                            ],
+                                                                                        ),
+                                                                                        (
+                                                                                            conjunctions: [
+                                                                                                (
+                                                                                                    relations: [
+                                                                                                        (
+                                                                                                            lhs: (
+                                                                                                                terms: [
+                                                                                                                    (
+                                                                                                                        conversions: [
+                                                                                                                            (
+                                                                                                                                inversion: (
+                                                                                                                                    value: Identifier(
+                                                                                                                                        "word",
+                                                                                                                                    ),
+                                                                                                                                    negated: false,
+                                                                                                                                ),
+                                                                                                                                to: None,
+                                                                                                                            ),
+                                                                                                                        ],
+                                                                                                                        ops: [
+                                                                                                                        ],
+                                                                                                                    ),
+                                                                                                                ],
+                                                                                                                ops: [
+                                                                                                                ],
+                                                                                                            ),
+                                                                                                            op: None,
+                                                                                                            rhs: None,
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                ),
+                                                                                            ],
+                                                                                        ),
+                                                                                    ],
+                                                                                ),
+                                                                            ),
+                                                                            negated: false,
+                                                                        ),
+                                                                        to: None,
+                                                                    ),
+                                                                ],
+                                                                ops: [
+                                                                ],
+                                                            ),
+                                                        ],
+                                                        ops: [
+                                                        ],
+                                                    ),
+                                                    op: None,
+                                                    rhs: None,
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                ),
+                            ),
+                        ],
+                        else_body: None,
+                    ),
+                ),
+            ],
+        ),
+    ),
+    Expression(
+        (
+            conjunctions: [
+                (
+                    relations: [
+                        (
+                            lhs: (
+                                terms: [
+                                    (
+                                        conversions: [
+                                            (
+                                                inversion: (
+                                                    value: FunctionCall(
+                                                        (
+                                                            name: "print",
+                                                            args: [
+                                                                (
+                                                                    conjunctions: [
+                                                                        (
+                                                                            relations: [
+                                                                                (
+                                                                                    lhs: (
+                                                                                        terms: [
+                                                                                            (
+                                                                                                conversions: [
+                                                                                                    (
+                                                                                                        inversion: (
+                                                                                                            value: Identifier(
+                                                                                                                "vowel_words",
+                                                                                                            ),
+                                                                                                            negated: false,
+                                                                                                        ),
+                                                                                                        to: None,
+                                                                                                    ),
+                                                                                                ],
+                                                                                                ops: [
+                                                                                                ],
+                                                                                            ),
+                                                                                        ],
+                                                                                        ops: [
+                                                                                        ],
+                                                                                    ),
+                                                                                    op: None,
+                                                                                    rhs: None,
+                                                                                ),
+                                                                            ],
+                                                                        ),
+                                                                    ],
+                                                                ),
+                                                            ],
+                                                        ),
+                                                    ),
+                                                    negated: false,
+                                                ),
+                                                to: None,
+                                            ),
+                                        ],
+                                        ops: [],
+                                    ),
+                                ],
+                                ops: [],
+                            ),
+                            op: None,
+                            rhs: None,
+                        ),
+                    ],
+                ),
+            ],
+        ),
+    ),
+]

@@ -218,6 +218,7 @@ pub enum IteratorExpression {
     Vector(Vector),
     Identifier(String),
     FunctionCall(FunctionCall),
+    VectorAccess(VectorAccess),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
