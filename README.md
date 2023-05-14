@@ -70,17 +70,15 @@ Ciąg fibonachiego
 ```jsx
 fn fibonacci(n) {
   if n <= 1 {
-    ret n
+    ret n;
   } else {
-    ret fibonacci(n - 1) + fibonacci(n - 2)
+    ret fibonacci(n - 1) + fibonacci(n - 2);
   }
 }
 
-let fib_sequence = [fibonacci(0), fibonacci(1)]
-let n = 10
-for i in 2 to n {
-  fib_sequence[i] = fib_sequence[i-1] + fib_sequence[i-2]
-}
+let n = 10;  // Replace with the desired value of n
+let fib_number = fibonacci(n);
+print(fib_number);
 ```
 
 Pattern Matching
@@ -180,8 +178,10 @@ statement             = variable_declaration
                       | loop_substatement
                       | conditional_statement
                       | function_statement
+                      | pattern_match_stmt
                       | return_statement
-                      | pattern_match_stmt;
+                      | comment
+                      | expression_stmt;
 
 variable_declaration  = "let" identifier "=" expression ";";
 constant_declaration  = "const" identifier "=" expression ";";
@@ -189,10 +189,13 @@ assign_declaration    = identifier "=" expression ";";
 loop_statement        = "for" identifier "in" iterator_expression "{" { statement } "}";
 conditional_statement = "if" expression "{" { statement } "}" [ "else" "{" { statement } "}" ];
 function_statement    = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
-pattern_match_stmt    = "match" expression "{" { when_substatement } default_substatement "}";
+pattern_match_stmt    = "match" expression "{" { when_branch } default_branch "}";
+expression_stmt	      = expression ";" ;
 
-when_substatement     = "when" match_expression "then" "{" { statement } "}";
-default_substatement  = "default" "{" { statement } "}";
+comment               = "//" { character } "\n";
+
+when_branch           = "when" when_expression "then" "{" { statement } "}";
+default_branch        = "default" "{" { statement } "}";
 
 return_statement      = "ret" [expression] ";";
 loop_substatement      = "end;"
@@ -201,32 +204,31 @@ loop_substatement      = "end;"
 
 iterator_expression   = vector | identifier | range_expression | function_call;
 range_expression      = range_factor "to" range_factor;
-match_expression      = expression { "either" expression };
-
+when_expression       = simple_expression { "either" simple_expression };
 expression            = conjuction { "or" conjuction };
-conjuction            = relation_expression { "and" relation_expression };
-relation_expression   = simple_expression [relational_operator, simple_expression];
+conjuction            = relation { "and" relation };
+relation              = simple_expression [relational_operator, simple_expression];
 simple_expression     = term { lower_arithmetic term };
-term                  = type_conversion { higher_arithmetic type_conversion };
-type_conversion       = inversion [ cast_operator cast_type ];
+term                  = conversion { higher_arithmetic conversion };
+conversion            = inversion [ cast_operator cast_type ];
 inversion             = ["!"] factor;
 
 
 factor                = literal
                       | identifier
                       | vector
-                      | function_call
-                      | vector_access
+                      | fun_call_or_vec_acc
+                      | vector_access_ident
                       | "(" expression ")";
 
-function_call         = identifier "(" [ argument_list ] ")";
+fun_call_or_vec_acc   = identifier "(" [ argument_list ] ")" [ "[" expression "]" ];
 parameter_list        = parameter { "," parameter };
 parameter             = ["const"] identifier;
 argument_list         = expression { "," expression };
 
 range_factor          = natural_number | identifier;
 
-vector_access         = (identifier | function_call) "[" expression "]";
+vector_access_ident   = identifier "[" expression "]";
 
 cast_operator         = "as";
 

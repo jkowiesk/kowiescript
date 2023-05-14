@@ -46,12 +46,11 @@ impl<'a> Lexer<'a> {
             Some(chr) => match chr {
                 '=' => Ok(self.simple_build('=', Token::Equal, Token::Assign)),
                 '+' => Ok(Token::Plus),
-                '-' => Ok(Token::Minus),
                 '!' => Ok(self.simple_build('=', Token::NotEqual, Token::Bang)),
                 '*' => Ok(Token::Asterisk),
                 '/' => Ok(self
                     .slash_to_token()?
-                    .unwrap_or_else(|| return self.next_token().unwrap())),
+                    .unwrap_or_else(|| self.next_token().unwrap())),
                 '%' => Ok(Token::Modulo),
                 '<' => Ok(self.simple_build('=', Token::LEt, Token::Lt)),
                 '>' => Ok(self.simple_build('=', Token::GEt, Token::Gt)),
@@ -65,7 +64,9 @@ impl<'a> Lexer<'a> {
                 ';' => Ok(Token::Semicolon),
                 _whitespace if WHITESPACES.contains(&(chr as u8)) => self.skip_whitespace(chr),
                 _string if chr == '"' => self.string_to_token(),
-                _number if chr.is_numeric() => self.number_to_token(chr),
+                _number_or_minus if chr.is_numeric() || chr == '-' => {
+                    self.number_or_minus_to_token(chr)
+                }
                 _ident if chr.is_alphanumeric() => self.identifier_to_token(chr),
                 _ => Ok(Token::Err),
             },
@@ -210,11 +211,34 @@ impl<'a> Lexer<'a> {
         Ok(Token::String(string))
     }
 
-    fn number_to_token(&mut self, chr: char) -> Result<Token, LexerError> {
-        let mut accumulator: i64 = num_char_to_u8(chr) as i64;
-        let mut next_chr = match self.chr_iter.peek() {
+    fn number_or_minus_to_token(&mut self, chr: char) -> Result<Token, LexerError> {
+        let mut is_negative = false;
+        let mut next_chr;
+
+        if chr == '-' {
+            match self.chr_iter.peek() {
+                Some(chr) => {
+                    if chr.is_numeric() {
+                        is_negative = true;
+                        next_chr = match self.chr_iter.next() {
+                            Some(chr) => chr,
+                            None => panic!("Lexer: number_or_minus_to_token: no next char"),
+                        };
+                    } else {
+                        return Ok(Token::Minus);
+                    }
+                }
+                None => return Ok(Token::Minus),
+            }
+        } else {
+            next_chr = chr;
+        }
+
+        let mut accumulator: i64 = num_char_to_u8(next_chr) as i64;
+
+        next_chr = match self.chr_iter.peek() {
             Some(chr) => *chr,
-            None => return Ok(Token::Integer(accumulator as i64)),
+            None => return Ok(Token::Integer(accumulator)),
         };
 
         if next_chr.is_alphabetic() {
@@ -225,13 +249,9 @@ impl<'a> Lexer<'a> {
             ));
         }
 
-        while next_chr.is_numeric() {
+        while let Some(next_chr) = self.peek_and_check_chr(|chr| chr.is_numeric()) {
             accumulator = accumulator * 10 + num_char_to_u8(next_chr) as i64;
             self.chr_iter.next();
-            next_chr = match self.chr_iter.peek() {
-                Some(chr) => *chr,
-                None => return Ok(Token::Integer(accumulator)),
-            };
         }
 
         if let Some('.') = self.chr_iter.peek() {
@@ -241,7 +261,12 @@ impl<'a> Lexer<'a> {
 
             match self.chr_iter.peek() {
                 Some(_) => {}
-                None => return Ok(Token::Float(accumulator as f64)),
+                None => {
+                    if is_negative {
+                        return Ok(Token::Float(-accumulator as f64));
+                    }
+                    return Ok(Token::Float(accumulator as f64));
+                }
             };
 
             while let Some(next_chr) = self.peek_and_check_chr(|chr| chr.is_numeric()) {
@@ -250,8 +275,15 @@ impl<'a> Lexer<'a> {
                 decimal_place /= 10.0;
             }
 
+            if is_negative {
+                let value = accumulator as f64 + decimal_part;
+                return Ok(Token::Float(-value));
+            }
             Ok(Token::Float(accumulator as f64 + decimal_part))
         } else {
+            if is_negative {
+                return Ok(Token::Integer(-accumulator));
+            }
             Ok(Token::Integer(accumulator))
         }
     }
@@ -463,6 +495,41 @@ mod tests {
     }
 
     #[test]
+    fn test_parsing_conjuction() {
+        let mut lexer = Lexer::new(Input::String("1 == 2 and 2 == 2".to_string()));
+        let tokens = tokenize(&mut lexer).unwrap();
+    }
+
+    #[test]
+    fn test_negative_nums() {
+        let string = String::from("-5 -1.0");
+        let mut lexer = Lexer::new(Input::String(string));
+        let tokens = tokenize(&mut lexer).unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![Token::Integer(-5), Token::Float(-1.0), Token::EOF]
+        );
+    }
+
+    #[test]
+    fn test_pass_minus() {
+        let string = String::from("-5 - -1.0");
+        let mut lexer = Lexer::new(Input::String(string));
+        let tokens = tokenize(&mut lexer).unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Integer(-5),
+                Token::Minus,
+                Token::Float(-1.0),
+                Token::EOF
+            ]
+        );
+    }
+
+    #[test]
     fn test_simple_string_input() {
         let string = String::from("let  a = 5;");
         let mut lexer = Lexer::new(Input::String(string));
@@ -538,11 +605,11 @@ mod tests {
             tokens,
             vec![
                 Token::Fn,
-                Token::Identifier("test".to_string()),
+                Token::FnIdent("test".to_string()),
                 Token::LeftParen,
                 Token::RightParen,
                 Token::LeftBrace,
-                Token::Identifier("print".to_string()),
+                Token::FnIdent("print".to_string()),
                 Token::LeftParen,
                 Token::String("test".to_string()),
                 Token::RightParen,
@@ -565,11 +632,11 @@ mod tests {
             tokens,
             vec![
                 Token::Fn,
-                Token::Identifier("test".to_string()),
+                Token::FnIdent("test".to_string()),
                 Token::LeftParen,
                 Token::RightParen,
                 Token::LeftBrace,
-                Token::Identifier("print".to_string()),
+                Token::FnIdent("print".to_string()),
                 Token::LeftParen,
                 Token::String("test".to_string()),
                 Token::RightParen,
@@ -595,7 +662,7 @@ mod tests {
                 Token::Let,
                 Token::Identifier("a".to_string()),
                 Token::Assign,
-                Token::Identifier("test".to_string()),
+                Token::FnIdent("test".to_string()),
                 Token::LeftParen,
                 Token::RightParen,
                 Token::Semicolon,
@@ -610,7 +677,7 @@ mod tests {
                 Token::NotEqual,
                 Token::Integer(5),
                 Token::LeftBrace,
-                Token::Identifier("print".to_string()),
+                Token::FnIdent("print".to_string()),
                 Token::LeftParen,
                 Token::String("'a' is not a five".to_string()),
                 Token::RightParen,

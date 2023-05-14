@@ -11,7 +11,6 @@ pub struct Variable {
 pub struct Interpreter {
     pub variables: HashMap<String, Variable>,
     pub functions: HashMap<String, Function>,
-    output: Option<String>,
 }
 
 impl Interpreter {
@@ -19,21 +18,15 @@ impl Interpreter {
         Self {
             variables: HashMap::new(),
             functions: HashMap::new(),
-            output: None,
         }
     }
 
-    pub fn interpret_program(
-        &mut self,
-        program: &Program,
-    ) -> Result<Option<String>, Box<dyn Error>> {
+    pub fn interpret_program(&mut self, program: &Program) -> Result<(), Box<dyn Error>> {
         for statement in program {
             self.interpret_statement(statement)?;
         }
-        let output = self.output.clone();
-        self.output = None;
 
-        Ok(output)
+        Ok(())
     }
 
     pub fn interpret_statement(&mut self, statement: &Statement) -> Result<(), Box<dyn Error>> {

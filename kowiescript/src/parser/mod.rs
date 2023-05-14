@@ -29,35 +29,13 @@ impl<'a> Parser<'a> {
     pub fn parse_program(&mut self) -> Result<Vec<Statement>, Box<dyn Error>> {
         let mut statements: Vec<Statement> = Vec::new();
 
-        while let Some(_) = self.peek_and_check_is_not(Token::EOF)? {
+        while self.peek_and_check_is_not(Token::EOF)?.is_some() {
             let statement = self.parse_statement()?;
             statements.push(statement);
         }
 
         Ok(statements)
     }
-
-    fn peek_and_check_is_not(&mut self, token: Token) -> Result<Option<Token>, Box<dyn Error>> {
-        let peeked = self.lexer.peek_token()?;
-
-        if peeked != token {
-            Ok(Some(token))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /*     fn peek_and_check_token<F>(&mut self, condition: F) -> Result<Option<Token>, Box<dyn Error>>
-    where
-        F: FnOnce(Token) -> bool,
-    {
-        let token = self.lexer.peek_token()?;
-        if condition(token) {
-            Ok(Some(token))
-        } else {
-            Ok(None)
-        }
-    } */
 
     /* statement = variable_declaration
     | constant_declaration
@@ -199,7 +177,7 @@ impl<'a> Parser<'a> {
             Token::FnIdent(name) => name,
             _token => Err(ParserError::boxed(
                 self.lexer.line,
-                ParserErrorKind::ExpectedIndent,
+                ParserErrorKind::MissingIdent,
                 _token,
             ))?,
         };
@@ -281,7 +259,7 @@ impl<'a> Parser<'a> {
             _token => {
                 return Err(ParserError::boxed(
                     self.lexer.line,
-                    ParserErrorKind::ExpectedIndent,
+                    ParserErrorKind::MissingIdent,
                     _token,
                 ))
             }
@@ -421,18 +399,29 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // range_expression = range_factor "to" range_factor;
+    // range_factor = natural_number | identifier;
     fn parse_range_factor(&mut self) -> Result<Factor, Box<dyn Error>> {
         let token = self.lexer.next_token()?;
         match token {
             Token::Integer(i) => {
                 if i < 0 {
-                    panic!("range 'factor', must be positive")
+                    return Err(ParserError::boxed(
+                        self.lexer.line,
+                        ParserErrorKind::NegativeRange,
+                        token,
+                    ))?;
                 }
                 Ok(Factor::Literal(Literal::Int(i)))
             }
             Token::Identifier(name) => Ok(Factor::Identifier(name)),
-            _ => panic!("expected 'factor', got {:?}", token),
+            _ => Err(ParserError::boxed(
+                self.lexer.line,
+                ParserErrorKind::UnexpectedExpr(vec![
+                    "natural number".to_string(),
+                    "identifier".to_string(),
+                ]),
+                token,
+            ))?,
         }
     }
 
@@ -440,19 +429,13 @@ impl<'a> Parser<'a> {
         self.parse_token(Token::LeftBrace)?;
 
         let mut statements: Vec<Statement> = Vec::new();
-        loop {
-            match self.lexer.peek_token()? {
-                Token::EOF => panic!("unexpected EOF"),
-                Token::RightBrace => {
-                    self.lexer.next_token()?;
-                    break;
-                }
-                _ => {
-                    let statement = self.parse_statement()?;
-                    statements.push(statement);
-                }
-            }
+
+        while self.peek_and_check_is_not(Token::RightBrace)?.is_some() {
+            let statement = self.parse_statement()?;
+            statements.push(statement);
         }
+
+        self.parse_token(Token::RightBrace)?;
 
         Ok(statements)
     }
@@ -512,19 +495,19 @@ impl<'a> Parser<'a> {
     fn parse_vector(&mut self) -> Result<Vector, Box<dyn Error>> {
         self.parse_token(Token::LeftBracket)?;
 
-        let mut values = Vec::new();
-
-        loop {
-            let expression = self.parse_expression()?;
-            values.push(expression);
-
-            let token = self.lexer.next_token()?;
-            match token {
-                Token::Comma => (),
-                Token::RightBracket => break,
-                _ => panic!("expected ',' or ']' token, got {:?}", token),
-            }
+        if Token::RightBrace == self.lexer.peek_token()? {
+            self.lexer.next_token()?;
+            return Ok(Vector { values: Vec::new() });
         }
+
+        let mut values = vec![self.parse_expression()?];
+
+        while let Token::Comma = self.lexer.peek_token()? {
+            self.lexer.next_token()?;
+            values.push(self.parse_expression()?);
+        }
+
+        self.parse_token(Token::RightBracket)?;
 
         Ok(Vector { values })
     }
@@ -611,22 +594,15 @@ impl<'a> Parser<'a> {
         let mut ops = Vec::new();
         terms.push(term);
 
-        loop {
-            match self.lexer.peek_token()? {
-                Token::Plus => {
-                    self.lexer.next_token()?;
-                    ops.push(ArithmeticOperator::Add);
-                    let conversion = self.parse_term()?;
-                    terms.push(conversion);
-                }
-                Token::Minus => {
-                    self.lexer.next_token()?;
-                    ops.push(ArithmeticOperator::Subtract);
-                    let conversion = self.parse_term()?;
-                    terms.push(conversion);
-                }
-                _ => break,
+        while let Some(token) =
+            self.check_and_parse_token_if(|token| token == Token::Plus || token == Token::Minus)?
+        {
+            if token == Token::Plus {
+                ops.push(ArithmeticOperator::Add);
+            } else {
+                ops.push(ArithmeticOperator::Subtract);
             }
+            terms.push(self.parse_term()?);
         }
 
         Ok(SimpleExpression { terms, ops })
@@ -644,28 +620,17 @@ impl<'a> Parser<'a> {
         let mut ops = Vec::new();
         conversions.push(conversion);
 
-        loop {
-            match self.lexer.peek_token()? {
-                Token::Asterisk => {
-                    self.lexer.next_token()?;
-                    ops.push(ArithmeticOperator::Multiply);
-                    let conversion = self.parse_type_conversion()?;
-                    conversions.push(conversion);
-                }
-                Token::Slash => {
-                    self.lexer.next_token()?;
-                    ops.push(ArithmeticOperator::Divide);
-                    let conversion = self.parse_type_conversion()?;
-                    conversions.push(conversion);
-                }
-                Token::Modulo => {
-                    self.lexer.next_token()?;
-                    ops.push(ArithmeticOperator::Modulo);
-                    let conversion = self.parse_type_conversion()?;
-                    conversions.push(conversion);
-                }
-                _ => break,
+        while let Some(token) = self.check_and_parse_token_if(|token| {
+            token == Token::Asterisk || token == Token::Slash || token == Token::Modulo
+        })? {
+            if token == Token::Asterisk {
+                ops.push(ArithmeticOperator::Multiply);
+            } else if token == Token::Slash {
+                ops.push(ArithmeticOperator::Divide);
+            } else {
+                ops.push(ArithmeticOperator::Modulo);
             }
+            conversions.push(self.parse_type_conversion()?);
         }
 
         Ok(Term { conversions, ops })
@@ -727,7 +692,11 @@ impl<'a> Parser<'a> {
 
         match factor {
             Ok(Some(factor)) => Ok(factor),
-            Ok(None) => panic!("expected factor"),
+            Ok(None) => Err(ParserError::boxed(
+                self.lexer.line,
+                ParserErrorKind::UnexpectedExpr(vec!["Factor".to_string()]),
+                self.lexer.next_token()?,
+            )),
             Err(e) => Err(e),
         }
     }
@@ -756,7 +725,13 @@ impl<'a> Parser<'a> {
                 let token = self.lexer.next_token()?;
                 let ident = match token {
                     Token::Identifier(ident) => ident,
-                    _ => panic!("expected identifier, got {:?}", token),
+                    _ => {
+                        return Err(ParserError::boxed(
+                            self.lexer.line,
+                            ParserErrorKind::MissingIdent,
+                            token,
+                        ))
+                    }
                 };
                 Ok(Some(Factor::Identifier(ident)))
             }
@@ -854,6 +829,29 @@ impl<'a> Parser<'a> {
             Ok(None)
         }
     }
+
+    fn peek_and_check_is_not(&mut self, token: Token) -> Result<Option<Token>, Box<dyn Error>> {
+        let peeked = self.lexer.peek_token()?;
+
+        if peeked != token {
+            Ok(Some(token))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn check_and_parse_token_if<F>(&mut self, condition: F) -> Result<Option<Token>, Box<dyn Error>>
+    where
+        F: FnOnce(Token) -> bool,
+    {
+        let token = self.lexer.peek_token()?;
+        if condition(token.clone()) {
+            self.lexer.next_token()?;
+            Ok(Some(token))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -862,7 +860,7 @@ pub enum ParserErrorKind {
     UnexpectedTokens(Vec<Token>),
     UnexpectedExpr(Vec<String>),
     UnrecognizedStmt,
-    ExpectedIndent,
+    NegativeRange,
 }
 
 #[derive(Debug)]
@@ -877,8 +875,8 @@ impl ParserError {
         use ParserErrorKind::*;
 
         let description = match kind {
-            MissingIdent => format!("incorrect spelling of ident '{}'", agent),
-            ExpectedIndent => format!("expected identifier got '{}'", agent),
+            NegativeRange => "range factor cannot be negative".to_string(),
+            MissingIdent => format!("expected identifier got '{}'", agent),
             UnrecognizedStmt => format!(
                 "Unrecognized statement started with '{}', are u the syntax is correct ?",
                 agent
@@ -993,6 +991,22 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_or_expression() {
+        let mut parser = Parser::new(Input::String("1 == 2 or 2 == 2".to_string()));
+        let expr = parser.parse_expression().unwrap();
+
+        assert_eq!(ron::to_string(&expr).unwrap(), "(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))]),(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])])");
+    }
+
+    #[test]
+    fn test_parse_and_expression() {
+        let mut parser = Parser::new(Input::String("1 == 2 and 2 == 2".to_string()));
+        let expr = parser.parse_expression().unwrap();
+
+        assert_eq!(ron::to_string(&expr).unwrap(), "(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]))),(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])])");
+    }
+
+    #[test]
     fn test_parse_for_loop_simple_range_no_body() {
         let mut parser = Parser::new(Input::String("for t in 1 to 2 {}".to_string()));
         let statement = parser.parse_statement().unwrap();
@@ -1024,7 +1038,6 @@ mod tests {
     fn test_parse_if_no_body() {
         let mut parser = Parser::new(Input::String("if 1 == 2 {}".to_string()));
         let statement = parser.parse_statement().unwrap();
-
         assert_eq!(ron::to_string(&statement).unwrap(), "Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[],else_body:None))");
     }
     #[test]
@@ -1085,6 +1098,11 @@ mod tests {
         let vector = parser.parse_vector().unwrap();
 
         assert_eq!(ron::to_string(&vector).unwrap(), "(values:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"i\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])");
+
+        let mut parser = Parser::new(Input::String("[1]".to_string()));
+        let vector = parser.parse_vector().unwrap();
+
+        assert_eq!(ron::to_string(&vector).unwrap(), "(values:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])");
     }
 
     #[test]
@@ -1165,6 +1183,23 @@ mod tests {
         } else {
             panic!("Expected error");
         }
+    }
+
+    #[test]
+    fn test_parse_fib_program() {
+        let mut parser = Parser::new(Input::File("src/tests/data/fib.ks".to_string()));
+        let fibonachi_fn = parser.parse_statement().unwrap();
+
+        assert_eq!(ron::to_string(&fibonachi_fn).unwrap(), "Function((name:\"fibonacci\",parameters:[(name:\"n\",kind:Mutable)],body:[Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:Some(LessEqual),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))))],else_body:Some([Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[Subtract]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[Subtract]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])]))))])))]))");
+
+        let n = parser.parse_statement().unwrap();
+        assert_eq!(ron::to_string(&n).unwrap(), "VarDeclaration((name:\"n\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(10)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
+
+        let fib_num = parser.parse_statement().unwrap();
+        assert_eq!(ron::to_string(&fib_num).unwrap(), "VarDeclaration((name:\"fib_number\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
+
+        let print = parser.parse_statement().unwrap();
+        assert_eq!(ron::to_string(&print).unwrap(),"Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"fib_number\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))");
     }
 
     fn copy() {

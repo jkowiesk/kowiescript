@@ -1,71 +1,280 @@
-Expression(
+Function(
     (
-        conjunctions: [
-            (
-                relations: [
-                    (
-                        lhs: (
-                            terms: [
-                                (
-                                    conversions: [
-                                        (
-                                            inversion: (
-                                                value: FunctionCall(
+        name: "fibonacci",
+        parameters: [(name: "n", kind: Mutable)],
+        body: [
+            Conditional(
+                (
+                    condition: (
+                        conjunctions: [
+                            (
+                                relations: [
+                                    (
+                                        lhs: (
+                                            terms: [
+                                                (
+                                                    conversions: [
+                                                        (
+                                                            inversion: (
+                                                                value: Identifier(
+                                                                    "n",
+                                                                ),
+                                                                negated: false,
+                                                            ),
+                                                            to: None,
+                                                        ),
+                                                    ],
+                                                    ops: [
+                                                    ],
+                                                ),
+                                            ],
+                                            ops: [
+                                            ],
+                                        ),
+                                        op: Some(
+                                            LessEqual,
+                                        ),
+                                        rhs: Some(
+                                            (
+                                                terms: [
                                                     (
-                                                        name: "print",
-                                                        args: [
+                                                        conversions: [
                                                             (
-                                                                conjunctions: [
+                                                                inversion: (
+                                                                    value: Literal(
+                                                                        Int(
+                                                                            1,
+                                                                        ),
+                                                                    ),
+                                                                    negated: false,
+                                                                ),
+                                                                to: None,
+                                                            ),
+                                                        ],
+                                                        ops: [
+                                                        ],
+                                                    ),
+                                                ],
+                                                ops: [
+                                                ],
+                                            ),
+                                        ),
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                    then_body: [
+                        Return(
+                            (
+                                value: Some(
+                                    (
+                                        conjunctions: [
+                                            (
+                                                relations: [
+                                                    (
+                                                        lhs: (
+                                                            terms: [
+                                                                (
+                                                                    conversions: [
+                                                                        (
+                                                                            inversion: (
+                                                                                value: Identifier(
+                                                                                    "n",
+                                                                                ),
+                                                                                negated: false,
+                                                                            ),
+                                                                            to: None,
+                                                                        ),
+                                                                    ],
+                                                                    ops: [
+                                                                    ],
+                                                                ),
+                                                            ],
+                                                            ops: [
+                                                            ],
+                                                        ),
+                                                        op: None,
+                                                        rhs: None,
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ],
+                    else_body: Some(
+                        [
+                            Return(
+                                (
+                                    value: Some(
+                                        (
+                                            conjunctions: [
+                                                (
+                                                    relations: [
+                                                        (
+                                                            lhs: (
+                                                                terms: [
                                                                     (
-                                                                        relations: [
+                                                                        conversions: [
                                                                             (
-                                                                                lhs: (
-                                                                                    terms: [
+                                                                                inversion: (
+                                                                                    value: FunctionCall(
                                                                                         (
-                                                                                            conversions: [
+                                                                                            name: "fibonacci",
+                                                                                            args: [
                                                                                                 (
-                                                                                                    inversion: (
-                                                                                                        value: Literal(
-                                                                                                            Int(
-                                                                                                                12,
-                                                                                                            ),
+                                                                                                    conjunctions: [
+                                                                                                        (
+                                                                                                            relations: [
+                                                                                                                (
+                                                                                                                    lhs: (
+                                                                                                                        terms: [
+                                                                                                                            (
+                                                                                                                                conversions: [
+                                                                                                                                    (
+                                                                                                                                        inversion: (
+                                                                                                                                            value: Identifier(
+                                                                                                                                                "n",
+                                                                                                                                            ),
+                                                                                                                                            negated: false,
+                                                                                                                                        ),
+                                                                                                                                        to: None,
+                                                                                                                                    ),
+                                                                                                                                ],
+                                                                                                                                ops: [
+                                                                                                                                ],
+                                                                                                                            ),
+                                                                                                                            (
+                                                                                                                                conversions: [
+                                                                                                                                    (
+                                                                                                                                        inversion: (
+                                                                                                                                            value: Literal(
+                                                                                                                                                Int(
+                                                                                                                                                    1,
+                                                                                                                                                ),
+                                                                                                                                            ),
+                                                                                                                                            negated: false,
+                                                                                                                                        ),
+                                                                                                                                        to: None,
+                                                                                                                                    ),
+                                                                                                                                ],
+                                                                                                                                ops: [
+                                                                                                                                ],
+                                                                                                                            ),
+                                                                                                                        ],
+                                                                                                                        ops: [
+                                                                                                                            Subtract,
+                                                                                                                        ],
+                                                                                                                    ),
+                                                                                                                    op: None,
+                                                                                                                    rhs: None,
+                                                                                                                ),
+                                                                                                            ],
                                                                                                         ),
-                                                                                                        negated: false,
-                                                                                                    ),
-                                                                                                    to: None,
+                                                                                                    ],
                                                                                                 ),
                                                                                             ],
-                                                                                            ops: [
+                                                                                        ),
+                                                                                    ),
+                                                                                    negated: false,
+                                                                                ),
+                                                                                to: None,
+                                                                            ),
+                                                                        ],
+                                                                        ops: [
+                                                                        ],
+                                                                    ),
+                                                                    (
+                                                                        conversions: [
+                                                                            (
+                                                                                inversion: (
+                                                                                    value: FunctionCall(
+                                                                                        (
+                                                                                            name: "fibonacci",
+                                                                                            args: [
+                                                                                                (
+                                                                                                    conjunctions: [
+                                                                                                        (
+                                                                                                            relations: [
+                                                                                                                (
+                                                                                                                    lhs: (
+                                                                                                                        terms: [
+                                                                                                                            (
+                                                                                                                                conversions: [
+                                                                                                                                    (
+                                                                                                                                        inversion: (
+                                                                                                                                            value: Identifier(
+                                                                                                                                                "n",
+                                                                                                                                            ),
+                                                                                                                                            negated: false,
+                                                                                                                                        ),
+                                                                                                                                        to: None,
+                                                                                                                                    ),
+                                                                                                                                ],
+                                                                                                                                ops: [
+                                                                                                                                ],
+                                                                                                                            ),
+                                                                                                                            (
+                                                                                                                                conversions: [
+                                                                                                                                    (
+                                                                                                                                        inversion: (
+                                                                                                                                            value: Literal(
+                                                                                                                                                Int(
+                                                                                                                                                    2,
+                                                                                                                                                ),
+                                                                                                                                            ),
+                                                                                                                                            negated: false,
+                                                                                                                                        ),
+                                                                                                                                        to: None,
+                                                                                                                                    ),
+                                                                                                                                ],
+                                                                                                                                ops: [
+                                                                                                                                ],
+                                                                                                                            ),
+                                                                                                                        ],
+                                                                                                                        ops: [
+                                                                                                                            Subtract,
+                                                                                                                        ],
+                                                                                                                    ),
+                                                                                                                    op: None,
+                                                                                                                    rhs: None,
+                                                                                                                ),
+                                                                                                            ],
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                ),
                                                                                             ],
                                                                                         ),
-                                                                                    ],
-                                                                                    ops: [
-                                                                                    ],
+                                                                                    ),
+                                                                                    negated: false,
                                                                                 ),
-                                                                                op: None,
-                                                                                rhs: None,
+                                                                                to: None,
                                                                             ),
+                                                                        ],
+                                                                        ops: [
                                                                         ],
                                                                     ),
                                                                 ],
+                                                                ops: [
+                                                                    Add,
+                                                                ],
                                                             ),
-                                                        ],
-                                                    ),
+                                                            op: None,
+                                                            rhs: None,
+                                                        ),
+                                                    ],
                                                 ),
-                                                negated: false,
-                                            ),
-                                            to: None,
+                                            ],
                                         ),
-                                    ],
-                                    ops: [],
+                                    ),
                                 ),
-                            ],
-                            ops: [],
-                        ),
-                        op: None,
-                        rhs: None,
+                            ),
+                        ],
                     ),
-                ],
+                ),
             ),
         ],
     ),

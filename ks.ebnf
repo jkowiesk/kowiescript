@@ -33,8 +33,7 @@ loop_substatement      = "end;"
 
 iterator_expression   = vector | identifier | range_expression | function_call;
 range_expression      = range_factor "to" range_factor;
-when_expression       = simple_expression { "either" simple_expression }; <- (poprawione) tu błąd ???
-
+when_expression       = simple_expression { "either" simple_expression };
 expression            = conjuction { "or" conjuction };
 conjuction            = relation { "and" relation };
 relation              = simple_expression [relational_operator, simple_expression];
