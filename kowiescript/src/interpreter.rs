@@ -79,7 +79,7 @@ impl Interpreter {
 
     fn interpret_for_loop(&mut self, for_loop: &ForLoop) -> Result<(), Box<dyn Error>> {
         let iterable = self.evaluate_iterator_expression(&for_loop.iterator)?;
-        for value in iterable {
+        'outer: for value in iterable {
             self.variables.insert(
                 for_loop.iter_var.clone(),
                 Variable {
@@ -90,15 +90,16 @@ impl Interpreter {
             for statement in &for_loop.body {
                 match statement {
                     Statement::SubLoop(sub_loop) => match sub_loop.kind {
-                        SubLoopKind::End => break,
-                        SubLoopKind::Next => continue,
+                        SubLoopKind::End => break 'outer,
+                        SubLoopKind::Next => break,
                     },
                     _ => {
-                        self.interpret_statement(statement);
+                        self.interpret_statement(statement)?;
                     }
                 }
-                self.interpret_statement(statement);
             }
+
+            self.variables.remove(&for_loop.iter_var);
         }
 
         Ok(())
@@ -518,5 +519,18 @@ mod tests {
             }
             _ => panic!("Expected expression statement."),
         }
+    }
+
+    #[test]
+    fn test_for_loop() {
+        let mut parser = Parser::new(Input::String(
+            "let a = 0; for i in 1 to 3 {a = a + 1;}".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_program(&statements);
+
+        assert_eq!(interpreter.variables["a"].value, Value::Int(3));
     }
 }
