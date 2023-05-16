@@ -3,7 +3,7 @@
 
 use std::{
     error::Error,
-    fmt::{self, format, Display},
+    fmt::{self},
     iter::Peekable,
 };
 
@@ -12,8 +12,6 @@ use crate::io::{ChrIterator, Input, WHITESPACES};
 use self::token::Token;
 
 pub mod token;
-
-pub const ESCAPE_CHARACTERS: [char; 5] = ['\\', '\"', '\t', '\n', '\r'];
 
 pub struct Lexer<'a> {
     chr_iter: Peekable<ChrIterator<'a>>,
@@ -90,12 +88,6 @@ impl<'a> Lexer<'a> {
         let token = self.next_token()?;
         self.peeked = Some(token.clone());
         Ok(token)
-    }
-
-    pub fn undo_token(&mut self) {
-        if let Some(_) = self.cur_token.clone() {
-            self.peeked = self.cur_token.clone();
-        }
     }
 
     fn slash_to_token(&mut self) -> Result<Option<Token>, LexerError> {
@@ -292,7 +284,7 @@ impl<'a> Lexer<'a> {
         let mut identifier = String::new();
         identifier.push(chr);
 
-        let mut next_chr = match self.chr_iter.peek() {
+        let _next_chr = match self.chr_iter.peek() {
             Some(chr) => *chr,
             None => return Ok(Token::Identifier(identifier)),
         };
@@ -497,7 +489,7 @@ mod tests {
     #[test]
     fn test_parsing_conjuction() {
         let mut lexer = Lexer::new(Input::String("1 == 2 and 2 == 2".to_string()));
-        let tokens = tokenize(&mut lexer).unwrap();
+        let _tokens = tokenize(&mut lexer).unwrap();
     }
 
     #[test]

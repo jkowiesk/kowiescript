@@ -4,11 +4,11 @@
 use crate::{
     io::Input,
     lexer::{
-        token::{self, Token},
+        token::{Token},
         Lexer,
     },
 };
-use std::{error::Error, fmt, string::ParseError};
+use std::{error::Error, fmt};
 
 use self::ast::*;
 
@@ -949,7 +949,7 @@ impl Error for ParserError {
 }
 
 mod tests {
-    use core::panic;
+    
 
     use super::*;
     #[test]

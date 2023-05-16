@@ -1,4 +1,4 @@
-use std::io::{BufRead, Read};
+use std::io::{BufRead};
 
 use interpreter::Interpreter;
 use io::Input;
@@ -18,7 +18,7 @@ pub fn run_program(input: Input) -> Result<(), String> {
     let mut parser = parser::Parser::new(input);
     let ast = parser.parse_program();
 
-    let mut program = match ast {
+    let program = match ast {
         Ok(program) => program,
         Err(err) => return Err(err.to_string()),
     };
@@ -59,5 +59,5 @@ pub fn interpret() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
 }

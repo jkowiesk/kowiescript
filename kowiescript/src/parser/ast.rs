@@ -235,105 +235,62 @@ pub struct Vector {
 // impl traits
 
 impl Add for Value {
-    type Output = Self;
+    type Output = Result<Self, String>;
 
-    fn add(self, other: Self) -> Self {
-        match self {
-            Value::Int(left) => match other {
-                Value::Int(right) => Value::Int(left + right),
-                Value::Float(right) => Value::Float(left as f64 + right),
-                _ => unimplemented!("Cannot add {:?} and {:?}", self, other),
-            },
-            Value::Float(left) => match other {
-                Value::Int(right) => Value::Float(left + right as f64),
-                Value::Float(right) => Value::Float(left + right),
-                _ => unimplemented!("Cannot add {:?} and {:?}", self, other),
-            },
-            Value::String(left) => match other {
-                Value::String(right) => Value::String(left + &right),
-                _ => unimplemented!("Cannot add {:?} and {:?}", left, other),
-            },
-            _ => unimplemented!("Cannot add {:?} and {:?}", self, other),
+    fn add(self, other: Self) -> Self::Output {
+        match (self.clone(), other.clone()) {
+            (Value::Int(left), Value::Int(right)) => Ok(Value::Int(left + right)),
+            (Value::Float(left), Value::Float(right)) => Ok(Value::Float(left + right)),
+            (Value::String(left), Value::String(right)) => Ok(Value::String(left + &right)),
+            _ => Err(format!("Cannot add {:?} and {:?}", self, other)),
         }
     }
 }
 
 impl Sub for Value {
-    type Output = Self;
+    type Output = Result<Self, String>;
 
-    fn sub(self, other: Self) -> Self {
-        match self {
-            Value::Int(left) => match other {
-                Value::Int(right) => Value::Int(left - right),
-                Value::Float(right) => Value::Float(left as f64 - right),
-                _ => unimplemented!("Cannot subtract {:?} and {:?}", self, other),
-            },
-            Value::Float(left) => match other {
-                Value::Int(right) => Value::Float(left - right as f64),
-                Value::Float(right) => Value::Float(left - right),
-                _ => unimplemented!("Cannot subtract {:?} and {:?}", self, other),
-            },
-            _ => unimplemented!("Cannot subtract {:?} and {:?}", self, other),
+    fn sub(self, other: Self) -> Self::Output {
+        match (self.clone(), other.clone()) {
+            (Value::Int(left), Value::Int(right)) => Ok(Value::Int(left - right)),
+            (Value::Float(left), Value::Float(right)) => Ok(Value::Float(left - right)),
+            _ => Err(format!("Cannot subtract {:?} and {:?}", self, other)),
         }
     }
 }
 
 impl Mul for Value {
-    type Output = Self;
+    type Output = Result<Self, String>;
 
-    fn mul(self, other: Self) -> Self {
-        match self {
-            Value::Int(left) => match other {
-                Value::Int(right) => Value::Int(left * right),
-                Value::Float(right) => Value::Float(left as f64 * right),
-                _ => unimplemented!("Cannot multiply {:?} and {:?}", self, other),
-            },
-            Value::Float(left) => match other {
-                Value::Int(right) => Value::Float(left * right as f64),
-                Value::Float(right) => Value::Float(left * right),
-                _ => unimplemented!("Cannot multiply {:?} and {:?}", self, other),
-            },
-            _ => unimplemented!("Cannot multiply {:?} and {:?}", self, other),
+    fn mul(self, other: Self) -> Self::Output {
+        match (self.clone(), other.clone()) {
+            (Value::Int(left), Value::Int(right)) => Ok(Value::Int(left * right)),
+            (Value::Float(left), Value::Float(right)) => Ok(Value::Float(left * right)),
+            _ => Err(format!("Cannot multiply {:?} and {:?}", self, other)),
         }
     }
 }
 
 impl Div for Value {
-    type Output = Self;
+    type Output = Result<Self, String>;
 
-    fn div(self, other: Self) -> Self {
-        match self {
-            Value::Int(left) => match other {
-                Value::Int(right) => Value::Int(left / right),
-                Value::Float(right) => Value::Float(left as f64 / right),
-                _ => unimplemented!("Cannot divide {:?} and {:?}", self, other),
-            },
-            Value::Float(left) => match other {
-                Value::Int(right) => Value::Float(left / right as f64),
-                Value::Float(right) => Value::Float(left / right),
-                _ => unimplemented!("Cannot divide {:?} and {:?}", self, other),
-            },
-            _ => unimplemented!("Cannot divide {:?} and {:?}", self, other),
+    fn div(self, other: Self) -> Self::Output {
+        match (self.clone(), other.clone()) {
+            (Value::Int(left), Value::Int(right)) => Ok(Value::Int(left / right)),
+            (Value::Float(left), Value::Float(right)) => Ok(Value::Float(left / right)),
+            _ => Err(format!("Cannot divide {:?} and {:?}", self, other)),
         }
     }
 }
 
 impl Rem for Value {
-    type Output = Self;
+    type Output = Result<Self, String>;
 
-    fn rem(self, other: Self) -> Self {
-        match self {
-            Value::Int(left) => match other {
-                Value::Int(right) => Value::Int(left % right),
-                Value::Float(right) => Value::Float(left as f64 % right),
-                _ => unimplemented!("Cannot modulo {:?} and {:?}", self, other),
-            },
-            Value::Float(left) => match other {
-                Value::Int(right) => Value::Float(left % right as f64),
-                Value::Float(right) => Value::Float(left % right),
-                _ => unimplemented!("Cannot modulo {:?} and {:?}", self, other),
-            },
-            _ => unimplemented!("Cannot modulo {:?} and {:?}", self, other),
+    fn rem(self, other: Self) -> Self::Output {
+        match (self.clone(), other.clone()) {
+            (Value::Int(left), Value::Int(right)) => Ok(Value::Int(left % right)),
+            (Value::Float(left), Value::Float(right)) => Ok(Value::Float(left % right)),
+            _ => Err(format!("Cannot modulo {:?} and {:?}", self, other)),
         }
     }
 }

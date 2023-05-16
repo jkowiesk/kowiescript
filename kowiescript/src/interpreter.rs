@@ -1,6 +1,6 @@
-use std::{collections::HashMap, error::Error, result};
+use std::{collections::HashMap, error::Error, fmt};
 
-use crate::{parser::ast::*, Program};
+use crate::{lexer::token::Token, parser::ast::*, Program};
 
 #[derive(Debug, Clone)]
 pub struct Variable {
@@ -189,8 +189,18 @@ impl Interpreter {
             let term_value = self.evaluate_term(term)?;
 
             result = match op {
-                ArithmeticOperator::Add => result + term_value,
-                ArithmeticOperator::Subtract => result - term_value,
+                ArithmeticOperator::Add => match result + term_value {
+                    Ok(val) => val,
+                    Err(msg) => {
+                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                    }
+                },
+                ArithmeticOperator::Subtract => match result - term_value {
+                    Ok(val) => val,
+                    Err(msg) => {
+                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                    }
+                },
                 _ => unimplemented!("Arithmetic operation not implemented."),
             };
         }
@@ -209,9 +219,24 @@ impl Interpreter {
             let conversion_value = self.evaluate_conversion(conversion)?;
 
             result = match op {
-                ArithmeticOperator::Multiply => result * conversion_value,
-                ArithmeticOperator::Divide => result / conversion_value,
-                ArithmeticOperator::Modulo => result % conversion_value,
+                ArithmeticOperator::Multiply => match result * conversion_value {
+                    Ok(val) => val,
+                    Err(msg) => {
+                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                    }
+                },
+                ArithmeticOperator::Divide => match result / conversion_value {
+                    Ok(val) => val,
+                    Err(msg) => {
+                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                    }
+                },
+                ArithmeticOperator::Modulo => match result % conversion_value {
+                    Ok(val) => val,
+                    Err(msg) => {
+                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                    }
+                },
                 _ => unimplemented!("Arithmetic operation not implemented."),
             };
         }
@@ -304,7 +329,7 @@ impl Interpreter {
                     .get(name)
                     .expect(&format!("Function '{}' is not defined.", name));
 
-                let parent_variables = self.variables.clone();
+                let _parent_variables = self.variables.clone();
 
                 for (i, param) in func.parameters.iter().enumerate() {
                     self.variables.insert(
@@ -333,7 +358,7 @@ impl Interpreter {
 
     fn evaluate_vector_access(
         &mut self,
-        vector_access: &VectorAccess,
+        _vector_access: &VectorAccess,
     ) -> Result<Value, Box<dyn Error>> {
         unimplemented!("Vector access is not implemented yet.")
     }
@@ -432,8 +457,51 @@ impl Interpreter {
         }
     }
 
-    fn negate_value(&self, value: Value) -> Value {
+    fn negate_value(&self, _value: Value) -> Value {
         unimplemented!("Negation is not implemented yet.")
+    }
+}
+
+pub enum InterpreterErrorKind {
+    Error(String),
+}
+
+#[derive(Debug)]
+pub struct InterpreterError {
+    description: String,
+    line: usize,
+}
+
+impl InterpreterError {
+    fn new(line: usize, kind: InterpreterErrorKind) -> Self {
+        use InterpreterErrorKind::*;
+
+        let description = match kind {
+            Error(str) => str,
+            _ => "Unknown error".to_string(),
+        };
+
+        InterpreterError { description, line }
+    }
+
+    fn boxed(line: usize, kind: InterpreterErrorKind) -> Box<Self> {
+        Box::new(InterpreterError::new(line, kind))
+    }
+}
+
+impl fmt::Display for InterpreterError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Syntax Error at line {}: {}",
+            self.line, self.description
+        )
+    }
+}
+
+impl Error for InterpreterError {
+    fn description(&self) -> &str {
+        &self.description
     }
 }
 
@@ -454,6 +522,15 @@ mod tests {
     #[test]
     fn test_interpret_modulo_w_plus_statement() {
         let mut parser = Parser::new(Input::String("1 +  2 * 3 ".to_string()));
+        let expression = parser.parse_expression().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        let result = interpreter.evaluate_expression(&expression).unwrap();
+        assert_eq!(result, Value::Int(7));
+    }
+
+    fn test_conjuction_evaluete() {
+        let mut parser = Parser::new(Input::String("let a = 2 == 2 and 3 == 1".to_string()));
         let expression = parser.parse_expression().unwrap();
 
         let mut interpreter = Interpreter::new();
