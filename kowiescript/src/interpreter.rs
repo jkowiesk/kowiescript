@@ -1,6 +1,6 @@
-use std::{collections::HashMap, error::Error, fmt};
+use std::{collections::HashMap, error::Error, fmt, vec};
 
-use crate::{lexer::token::Token, parser::ast::*, Program};
+use crate::{parser::ast::*, Program};
 
 #[derive(Debug, Clone)]
 pub struct Variable {
@@ -11,6 +11,7 @@ pub struct Variable {
 pub struct Interpreter {
     pub variables: HashMap<String, Variable>,
     pub functions: HashMap<String, Function>,
+    pub lines: Vec<usize>,
 }
 
 impl Interpreter {
@@ -18,6 +19,7 @@ impl Interpreter {
         Self {
             variables: HashMap::new(),
             functions: HashMap::new(),
+            lines: Vec::new(),
         }
     }
 
@@ -29,26 +31,107 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn interpret_statement(&mut self, statement: &Statement) -> Result<(), Box<dyn Error>> {
-        match statement {
+    pub fn interpret_statement(
+        &mut self,
+        statement: &SourceStatement,
+    ) -> Result<(), Box<dyn Error>> {
+        self.lines.push(statement.line);
+        match &statement.stmt {
             Statement::VarDeclaration(var_declaration) => {
-                self.interpret_var_declaration(var_declaration)
+                self.interpret_var_declaration(var_declaration)?
             }
-            Statement::Assignment(assignment) => self.interpret_assignment(assignment),
-            Statement::ForLoop(for_loop) => self.interpret_for_loop(for_loop),
-            Statement::SubLoop(sub_loop) => self.interpret_sub_loop(sub_loop),
-            Statement::Function(function) => self.interpret_function(function),
+            Statement::Assignment(assignment) => self.interpret_assignment(assignment)?,
+            Statement::ForLoop(for_loop) => self.interpret_for_loop(for_loop)?,
+            Statement::SubLoop(sub_loop) => self.interpret_sub_loop(sub_loop)?,
+            Statement::Function(function) => self.interpret_function(function)?,
+            Statement::PatternMatch(pattern_match) => {
+                self.interpret_pattern_match(pattern_match)?
+            }
+            Statement::Return(return_stmt) => self.interpret_return(return_stmt)?,
             Statement::Expression(expression) => {
                 self.evaluate_expression(expression)?;
-                Ok(())
             }
-            _ => unimplemented!("Statement interpretation not implemented."),
-        }
+            Statement::Conditional(cond) => self.interpret_if(cond)?,
+        };
+        self.lines.pop();
+        Ok(())
     }
 
     fn interpret_function(&mut self, function: &Function) -> Result<(), Box<dyn Error>> {
         self.functions
             .insert(function.name.clone(), function.clone());
+
+        Ok(())
+    }
+
+    fn interpret_return(&mut self, return_stmt: &Return) -> Result<(), Box<dyn Error>> {
+        if let Some(expr) = &return_stmt.value {
+            let value = self.evaluate_expression(expr)?;
+            self.variables.insert(
+                "ret".to_string(),
+                Variable {
+                    kind: VarKind::Constant,
+                    value,
+                },
+            );
+        } else {
+            self.variables.insert(
+                "ret".to_string(),
+                Variable {
+                    kind: VarKind::Constant,
+                    value: Value::Void,
+                },
+            );
+        }
+
+        Ok(())
+    }
+
+    fn interpret_pattern_match(
+        &mut self,
+        pattern_match: &PatternMatch,
+    ) -> Result<(), Box<dyn Error>> {
+        let parent = self.evaluate_expression(&pattern_match.expression)?;
+        let mut matched = false;
+        for when_branch in &pattern_match.when_branches {
+            let mut matched_branch = true;
+            for simple_expr in &when_branch.pattern.simple_exprs {
+                let child = self.evaluate_simple_expression(simple_expr)?;
+                if parent != child {
+                    matched_branch = false;
+                    break;
+                }
+            }
+            if matched_branch {
+                matched = true;
+                for statement in &when_branch.body {
+                    self.interpret_statement(statement)?;
+                }
+                break;
+            }
+        }
+        if !matched {
+            for statement in &pattern_match.default_branch {
+                self.interpret_statement(statement)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn interpret_if(&mut self, cond: &Conditional) -> Result<(), Box<dyn Error>> {
+        let expr = self.evaluate_expression(&cond.condition)?;
+        if let Value::Bool(val) = expr {
+            if val {
+                for source_stmt in &cond.then_body {
+                    self.interpret_statement(source_stmt)?;
+                }
+            } else if let Some(else_body) = &cond.else_body {
+                for source_stmt in else_body {
+                    self.interpret_statement(source_stmt)?;
+                }
+            }
+        }
 
         Ok(())
     }
@@ -88,9 +171,12 @@ impl Interpreter {
                 },
             );
             for statement in &for_loop.body {
-                match statement {
+                match &statement.stmt {
                     Statement::SubLoop(sub_loop) => match sub_loop.kind {
-                        SubLoopKind::End => break 'outer,
+                        SubLoopKind::End => {
+                            self.variables.remove(&for_loop.iter_var);
+                            break 'outer;
+                        }
                         SubLoopKind::Next => break,
                     },
                     _ => {
@@ -192,13 +278,19 @@ impl Interpreter {
                 ArithmeticOperator::Add => match result + term_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(msg),
+                        ))
                     }
                 },
                 ArithmeticOperator::Subtract => match result - term_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(msg),
+                        ))
                     }
                 },
                 _ => unimplemented!("Arithmetic operation not implemented."),
@@ -222,19 +314,28 @@ impl Interpreter {
                 ArithmeticOperator::Multiply => match result * conversion_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(msg),
+                        ))
                     }
                 },
                 ArithmeticOperator::Divide => match result / conversion_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(msg),
+                        ))
                     }
                 },
                 ArithmeticOperator::Modulo => match result % conversion_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(1, InterpreterErrorKind::Error(msg)))
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(msg),
+                        ))
                     }
                 },
                 _ => unimplemented!("Arithmetic operation not implemented."),
@@ -327,9 +428,8 @@ impl Interpreter {
                 let func = self
                     .functions
                     .get(name)
-                    .expect(&format!("Function '{}' is not defined.", name));
-
-                let _parent_variables = self.variables.clone();
+                    .unwrap_or_else(|| panic!("Function '{}' is not defined.", name))
+                    .clone();
 
                 for (i, param) in func.parameters.iter().enumerate() {
                     self.variables.insert(
@@ -341,26 +441,68 @@ impl Interpreter {
                     );
                 }
 
-                for statement in func.body.clone() {
-                    match statement {
-                        Statement::Return(ret_expr) => match ret_expr.value {
-                            Some(expr) => return self.evaluate_expression(&expr),
-                            None => return Ok(Value::Void),
-                        },
-                        _ => self.interpret_statement(&statement)?,
-                    };
+                for statement in &func.body.clone() {
+                    self.interpret_statement(statement)?;
                 }
 
-                Ok(Value::Void)
+                //remove local variables from the scope
+                for param in func.parameters.iter() {
+                    self.variables.remove(&param.name);
+                }
+
+                println!("Variables: {:?}", self.variables);
+
+                match self.variables.get("ret").cloned() {
+                    Some(ret) => {
+                        self.variables.remove("ret");
+                        Ok(ret.value)
+                    }
+                    None => Ok(Value::Void),
+                }
             }
         }
     }
 
     fn evaluate_vector_access(
         &mut self,
-        _vector_access: &VectorAccess,
+        vector_access: &VectorAccess,
     ) -> Result<Value, Box<dyn Error>> {
-        unimplemented!("Vector access is not implemented yet.")
+        let index = match self.evaluate_expression(&vector_access.index)? {
+            Value::Int(int) => int,
+            _ => panic!(""),
+        };
+
+        match &vector_access.vector_expr {
+            VectorExpr::Identifier(ident) => {
+                let vector = self
+                    .variables
+                    .get(ident)
+                    .expect(&format!("Vector '{}' is not defined.", ident));
+
+                match &vector.value {
+                    // try to get the value at the given index
+                    Value::Vector(values) => {
+                        if index < 0 || index >= values.len() as i64 {
+                            panic!("Index out of bounds.");
+                        }
+                        Ok(values[index as usize].clone())
+                    }
+                    _ => panic!("The variable is not a vector."),
+                }
+            }
+            VectorExpr::FunctionCall(func_call) => {
+                let vector = self.evaluate_function_call(func_call)?;
+                match vector {
+                    Value::Vector(values) => {
+                        if index < 0 || index >= values.len() as i64 {
+                            panic!("Index out of bounds.");
+                        }
+                        Ok(values[index as usize].clone())
+                    }
+                    _ => panic!("The function doesnt return a vector."),
+                }
+            }
+        }
     }
 
     fn evaluate_iterator_expression(
@@ -405,9 +547,22 @@ impl Interpreter {
                     Value::Vector(values) => Ok(values.clone()),
                     _ => panic!("Cannot iterate over non-vector."),
                 },
-                None => unimplemented!("Variable doesn't exist."),
+                None => panic!("Variable doesn't exist."),
             },
-            _ => unimplemented!("Iterator expression evaluation not implemented."),
+            IteratorExpression::FunctionCall(func_call) => {
+                let vector = self.evaluate_function_call(func_call)?;
+                match vector {
+                    Value::Vector(values) => Ok(values),
+                    _ => panic!("Cannot iterate over non-vector."),
+                }
+            }
+            IteratorExpression::VectorAccess(vector_access) => {
+                let vector = self.evaluate_vector_access(vector_access)?;
+                match vector {
+                    Value::Vector(values) => Ok(values),
+                    _ => panic!("Cannot iterate over non-vector."),
+                }
+            }
         }
     }
 
@@ -457,8 +612,15 @@ impl Interpreter {
         }
     }
 
-    fn negate_value(&self, _value: Value) -> Value {
-        unimplemented!("Negation is not implemented yet.")
+    fn negate_value(&self, value: Value) -> Value {
+        match value {
+            Value::Int(int) => Value::Int(-int),
+            Value::Float(float) => Value::Float(-float),
+            Value::String(string) => Value::String(string),
+            Value::Bool(bool) => Value::Bool(!bool),
+            Value::Void => panic!("Void negation is not possible."),
+            Value::Vector(_) => panic!("Vector negation is not possible."),
+        }
     }
 }
 
@@ -493,7 +655,7 @@ impl fmt::Display for InterpreterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Syntax Error at line {}: {}",
+            "Runtime Error at line {}: {}",
             self.line, self.description
         )
     }
@@ -519,6 +681,20 @@ mod tests {
         let result = interpreter.evaluate_expression(&expression).unwrap();
         assert_eq!(result, Value::Int(-1));
     }
+
+    #[test]
+    fn test_strong_typed() {
+        let mut parser = Parser::new(Input::String("1 + 2.0;".to_string()));
+        let statement = parser.parse_statement().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        let result = interpreter.interpret_statement(&statement);
+
+        if let Ok(_) = result {
+            panic!();
+        }
+    }
+
     #[test]
     fn test_interpret_modulo_w_plus_statement() {
         let mut parser = Parser::new(Input::String("1 +  2 * 3 ".to_string()));
@@ -529,13 +705,14 @@ mod tests {
         assert_eq!(result, Value::Int(7));
     }
 
+    #[test]
     fn test_conjuction_evaluete() {
-        let mut parser = Parser::new(Input::String("let a = 2 == 2 and 3 == 1".to_string()));
-        let expression = parser.parse_expression().unwrap();
+        let mut parser = Parser::new(Input::String("let a = 2 == 2 and 3 == 1;".to_string()));
+        let statement = parser.parse_statement().unwrap();
 
         let mut interpreter = Interpreter::new();
-        let result = interpreter.evaluate_expression(&expression).unwrap();
-        assert_eq!(result, Value::Int(7));
+        interpreter.interpret_statement(&statement).unwrap();
+        assert_eq!(interpreter.variables["a"].value, Value::Bool(false));
     }
 
     #[test]
@@ -554,7 +731,7 @@ mod tests {
         let statements = parser.parse_program().unwrap();
 
         let mut interpreter = Interpreter::new();
-        match &statements[0] {
+        match &statements[0].stmt {
             Statement::Function(function) => {
                 interpreter.interpret_function(function);
             }
@@ -575,6 +752,25 @@ mod tests {
             Err(err) => panic!("Error: {}", err),
         }
     }
+
+    #[test]
+    fn test_variable_fn() {
+        let mut parser = Parser::new(Input::String(
+            "fn fib(n) {if n <= 1 {ret 2;}} let a = fib(0);".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        match &statements[0].stmt {
+            Statement::Function(function) => {
+                interpreter.interpret_function(function).unwrap();
+            }
+            _ => panic!("Expected function declaration."),
+        }
+
+        interpreter.interpret_statement(&statements[1]);
+        assert_eq!(interpreter.variables["a"].value, Value::Int(2));
+    }
     #[test]
     fn test_fn_print() {
         let mut parser = Parser::new(Input::String(
@@ -583,14 +779,14 @@ mod tests {
         let statements = parser.parse_program().unwrap();
 
         let mut interpreter = Interpreter::new();
-        match &statements[0] {
+        match &statements[0].stmt {
             Statement::Function(function) => {
                 interpreter.interpret_function(function).unwrap();
             }
             _ => panic!("Expected function declaration."),
         }
 
-        match &statements[1] {
+        match &statements[1].stmt {
             Statement::Expression(expression) => {
                 interpreter.evaluate_expression(expression).unwrap();
             }
@@ -609,5 +805,32 @@ mod tests {
         interpreter.interpret_program(&statements);
 
         assert_eq!(interpreter.variables["a"].value, Value::Int(3));
+    }
+
+    #[test]
+    fn test_if_simple() {
+        let mut parser = Parser::new(Input::String(
+            "let a = 2; if 1 == 1 and 2 == 2 {a = 3;}".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_program(&statements);
+
+        assert_eq!(interpreter.variables["a"].value, Value::Int(3));
+    }
+
+    #[test]
+    fn test_match_simple() {
+        let mut parser = Parser::new(Input::String(
+            "let a = 2; match a { when 1 then {a = 3;} when 2 then {a = 4;} default {}}"
+                .to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_program(&statements);
+
+        assert_eq!(interpreter.variables["a"].value, Value::Int(4));
     }
 }

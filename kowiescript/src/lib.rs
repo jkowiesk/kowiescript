@@ -1,8 +1,8 @@
-use std::io::{BufRead};
+use std::io::BufRead;
 
 use interpreter::Interpreter;
 use io::Input;
-use parser::{ast::Statement, Parser};
+use parser::{ast::SourceStatement, Parser};
 
 // Author: Jakub Kowieski
 //
@@ -12,7 +12,7 @@ pub mod io;
 mod lexer;
 mod parser;
 
-pub type Program = Vec<Statement>;
+pub type Program = Vec<SourceStatement>;
 
 pub fn run_program(input: Input) -> Result<(), String> {
     let mut parser = parser::Parser::new(input);
@@ -37,6 +37,8 @@ pub fn interpret() -> Result<(), String> {
     let stdin = std::io::stdin();
     let input = stdin.lock();
     let mut lines = input.lines();
+    // some cool print for welcoming to my interpreter and saying about exit command
+
 
     loop {
         if let Some(Ok(line)) = lines.next() {
@@ -50,7 +52,10 @@ pub fn interpret() -> Result<(), String> {
                 std::process::exit(1);
             });
 
-            interpreter.interpret_program(&ast);
+            if let Err(err) = interpreter.interpret_program(&ast) {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            }
         }
     }
 
@@ -58,6 +63,4 @@ pub fn interpret() -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    
-}
+mod tests {}

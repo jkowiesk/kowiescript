@@ -38,7 +38,7 @@ pub struct Assignment {
 pub struct ForLoop {
     pub iter_var: String,
     pub iterator: IteratorExpression,
-    pub body: Vec<Statement>,
+    pub body: Vec<SourceStatement>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -55,15 +55,15 @@ pub enum SubLoopKind {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Conditional {
     pub condition: Expression,
-    pub then_body: Vec<Statement>,
-    pub else_body: Option<Vec<Statement>>,
+    pub then_body: Vec<SourceStatement>,
+    pub else_body: Option<Vec<SourceStatement>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Function {
     pub name: String,
     pub parameters: Vec<Parameter>,
-    pub body: Vec<Statement>,
+    pub body: Vec<SourceStatement>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -81,13 +81,13 @@ pub struct Return {
 pub struct PatternMatch {
     pub expression: Expression,
     pub when_branches: Vec<WhenBranch>,
-    pub default_branch: Vec<Statement>,
+    pub default_branch: Vec<SourceStatement>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WhenBranch {
     pub pattern: WhenExpression,
-    pub body: Vec<Statement>,
+    pub body: Vec<SourceStatement>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -106,6 +106,12 @@ pub enum Statement {
     Return(Return),
     PatternMatch(PatternMatch),
     Expression(Expression),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SourceStatement {
+    pub stmt: Statement,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
