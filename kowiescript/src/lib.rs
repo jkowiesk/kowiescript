@@ -39,22 +39,30 @@ pub fn interpret() -> Result<(), String> {
     let mut lines = input.lines();
     // some cool print for welcoming to my interpreter and saying about exit command
 
-
     loop {
         if let Some(Ok(line)) = lines.next() {
+            let is_err = false;
             if line.trim() == "exit" {
                 break;
             }
 
             let mut parser = Parser::new(Input::String(line));
-            let ast = parser.parse_program().unwrap_or_else(|err| {
-                eprintln!("{}", err);
-                std::process::exit(1);
-            });
+            let result = parser.parse_program();
 
-            if let Err(err) = interpreter.interpret_program(&ast) {
-                eprintln!("{}", err);
-                std::process::exit(1);
+            let ast = match result {
+                Ok(ast) => ast,
+                Err(err) => {
+                    eprintln!("{}", err);
+                    continue;
+                }
+            };
+
+            let result = interpreter.interpret_program(&ast);
+            match result {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err);
+                }
             }
         }
     }

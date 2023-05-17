@@ -9,7 +9,7 @@ pub struct Variable {
 }
 
 pub struct Interpreter {
-    pub variables: HashMap<String, Variable>,
+    pub variables: Vec<HashMap<String, Variable>>,
     pub functions: HashMap<String, Function>,
     pub lines: Vec<usize>,
 }
@@ -17,7 +17,7 @@ pub struct Interpreter {
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            variables: HashMap::new(),
+            variables: vec![HashMap::new()],
             functions: HashMap::new(),
             lines: Vec::new(),
         }
@@ -67,7 +67,7 @@ impl Interpreter {
     fn interpret_return(&mut self, return_stmt: &Return) -> Result<(), Box<dyn Error>> {
         if let Some(expr) = &return_stmt.value {
             let value = self.evaluate_expression(expr)?;
-            self.variables.insert(
+            self.variables.last_mut().unwrap().insert(
                 "ret".to_string(),
                 Variable {
                     kind: VarKind::Constant,
@@ -75,7 +75,7 @@ impl Interpreter {
                 },
             );
         } else {
-            self.variables.insert(
+            self.variables.last_mut().unwrap().insert(
                 "ret".to_string(),
                 Variable {
                     kind: VarKind::Constant,
@@ -141,7 +141,7 @@ impl Interpreter {
         var_declaration: &VarDeclaration,
     ) -> Result<(), Box<dyn Error>> {
         let value = self.evaluate_expression(&var_declaration.expression)?;
-        self.variables.insert(
+        self.variables.last_mut().unwrap().insert(
             var_declaration.name.clone(),
             Variable {
                 kind: var_declaration.kind.clone(),
@@ -151,19 +151,24 @@ impl Interpreter {
 
         Ok(())
     }
-
     fn interpret_assignment(&mut self, assignment: &Assignment) -> Result<(), Box<dyn Error>> {
         let value = self.evaluate_expression(&assignment.expression)?;
         // TODO: Remove panic
-        self.variables.get_mut(&assignment.name).unwrap().value = value;
+        self.variables
+            .last_mut()
+            .unwrap()
+            .get_mut(&assignment.name)
+            .unwrap()
+            .value = value;
 
         Ok(())
     }
 
     fn interpret_for_loop(&mut self, for_loop: &ForLoop) -> Result<(), Box<dyn Error>> {
         let iterable = self.evaluate_iterator_expression(&for_loop.iterator)?;
+
         'outer: for value in iterable {
-            self.variables.insert(
+            self.variables.last_mut().unwrap().insert(
                 for_loop.iter_var.clone(),
                 Variable {
                     kind: VarKind::Mutable,
@@ -174,7 +179,10 @@ impl Interpreter {
                 match &statement.stmt {
                     Statement::SubLoop(sub_loop) => match sub_loop.kind {
                         SubLoopKind::End => {
-                            self.variables.remove(&for_loop.iter_var);
+                            self.variables
+                                .last_mut()
+                                .unwrap()
+                                .remove(&for_loop.iter_var);
                             break 'outer;
                         }
                         SubLoopKind::Next => break,
@@ -185,7 +193,10 @@ impl Interpreter {
                 }
             }
 
-            self.variables.remove(&for_loop.iter_var);
+            self.variables
+                .last_mut()
+                .unwrap()
+                .remove(&for_loop.iter_var);
         }
 
         Ok(())
@@ -384,12 +395,12 @@ impl Interpreter {
     }
 
     fn evaluate_identifier(&mut self, name: &str) -> Result<Value, Box<dyn Error>> {
-        let var = self
-            .variables
-            .get(name)
-            .expect(&format!("Variable '{}' is not defined.", name));
-
-        Ok(var.value.clone())
+        for scope in self.variables.iter().rev() {
+            if let Some(var) = scope.get(name) {
+                return Ok(var.value.clone());
+            }
+        }
+        panic!("Variable is not defined.");
     }
 
     fn evaluate_literal(&mut self, literal: &Literal) -> Result<Value, Box<dyn Error>> {
@@ -424,6 +435,30 @@ impl Interpreter {
                 println!();
                 Ok(Value::Void)
             }
+            "push" => {
+                // pushes a value to a vector which is in the last scope of the variables where arguments are first name of identifier and second value to add
+                let vector_name = match &args[0] {
+                    Value::String(name) => name,
+                    _ => panic!("First argument of push must be an identifier."),
+                };
+                let vector = self
+                    .variables
+                    .last_mut()
+                    .unwrap()
+                    .get_mut(vector_name)
+                    .unwrap_or_else(|| panic!("Vector '{}' is not defined.", vector_name));
+                let value = args[1].clone();
+                match vector {
+                    Variable {
+                        kind: VarKind::Mutable,
+                        value: Value::Vector(vec),
+                    } => {
+                        vec.push(value);
+                        Ok(Value::Void)
+                    }
+                    _ => panic!("Second argument of push must be a vector."),
+                }
+            }
             _name => {
                 let func = self
                     .functions
@@ -431,8 +466,11 @@ impl Interpreter {
                     .unwrap_or_else(|| panic!("Function '{}' is not defined.", name))
                     .clone();
 
+                // Create a new scope for this function call
+                self.variables.push(HashMap::new());
+
                 for (i, param) in func.parameters.iter().enumerate() {
-                    self.variables.insert(
+                    self.variables.last_mut().unwrap().insert(
                         param.name.clone(),
                         Variable {
                             kind: param.kind.clone(),
@@ -443,22 +481,31 @@ impl Interpreter {
 
                 for statement in &func.body.clone() {
                     self.interpret_statement(statement)?;
+                    let ret = self.variables.last().unwrap().get("ret");
+                    if ret.is_some() {
+                        break;
+                    }
                 }
+
+                // println!("{:?}", self.variables.last().unwrap().get("ret"));
 
                 //remove local variables from the scope
                 for param in func.parameters.iter() {
-                    self.variables.remove(&param.name);
+                    self.variables.last_mut().unwrap().remove(&param.name);
                 }
 
-                println!("Variables: {:?}", self.variables);
-
-                match self.variables.get("ret").cloned() {
+                let ret = match self.variables.last_mut().unwrap().get("ret").cloned() {
                     Some(ret) => {
-                        self.variables.remove("ret");
+                        self.variables.last_mut().unwrap().remove("ret");
                         Ok(ret.value)
                     }
                     None => Ok(Value::Void),
-                }
+                };
+
+                // Remove the function's scope
+                self.variables.pop();
+
+                ret
             }
         }
     }
@@ -474,21 +521,28 @@ impl Interpreter {
 
         match &vector_access.vector_expr {
             VectorExpr::Identifier(ident) => {
-                let vector = self
-                    .variables
-                    .get(ident)
-                    .expect(&format!("Vector '{}' is not defined.", ident));
-
-                match &vector.value {
-                    // try to get the value at the given index
-                    Value::Vector(values) => {
-                        if index < 0 || index >= values.len() as i64 {
-                            panic!("Index out of bounds.");
+                for scope in self.variables.iter().rev() {
+                    if let Some(vector) = scope.get(ident) {
+                        match &vector.value {
+                            Value::Vector(values) => {
+                                if index < 0 || index >= values.len() as i64 {
+                                    panic!("Index out of bounds.");
+                                }
+                                return Ok(values[index as usize].clone());
+                            }
+                            Value::String(string) => {
+                                if index < 0 || index >= string.len() as i64 {
+                                    panic!("Index out of bounds.");
+                                }
+                                return Ok(Value::String(
+                                    string.chars().nth(index as usize).unwrap().to_string(),
+                                ));
+                            }
+                            _ => panic!("The variable is not a vector."),
                         }
-                        Ok(values[index as usize].clone())
                     }
-                    _ => panic!("The variable is not a vector."),
                 }
+                panic!("Vector is not defined.");
             }
             VectorExpr::FunctionCall(func_call) => {
                 let vector = self.evaluate_function_call(func_call)?;
@@ -499,7 +553,7 @@ impl Interpreter {
                         }
                         Ok(values[index as usize].clone())
                     }
-                    _ => panic!("The function doesnt return a vector."),
+                    _ => panic!("The function doesn't return a vector."),
                 }
             }
         }
@@ -542,13 +596,17 @@ impl Interpreter {
                 }
                 Ok(result)
             }
-            IteratorExpression::Identifier(ident) => match self.variables.get(ident) {
-                Some(var) => match &var.value {
-                    Value::Vector(values) => Ok(values.clone()),
-                    _ => panic!("Cannot iterate over non-vector."),
-                },
-                None => panic!("Variable doesn't exist."),
-            },
+            IteratorExpression::Identifier(ident) => {
+                for scope in self.variables.iter().rev() {
+                    if let Some(var) = scope.get(ident) {
+                        match &var.value {
+                            Value::Vector(values) => return Ok(values.clone()),
+                            _ => panic!("Cannot iterate over non-vector."),
+                        }
+                    }
+                }
+                panic!("Variable doesn't exist.")
+            }
             IteratorExpression::FunctionCall(func_call) => {
                 let vector = self.evaluate_function_call(func_call)?;
                 match vector {
@@ -712,7 +770,37 @@ mod tests {
 
         let mut interpreter = Interpreter::new();
         interpreter.interpret_statement(&statement).unwrap();
-        assert_eq!(interpreter.variables["a"].value, Value::Bool(false));
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Bool(false)
+        );
+    }
+
+    #[test]
+    fn test_if_cond_fn_call() {
+        let mut parser = Parser::new(Input::String(
+            "let a = 1;fn t() {ret true;} if t() {a = 2;}".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_program(&statements).unwrap();
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(2)
+        );
     }
 
     #[test]
@@ -722,7 +810,16 @@ mod tests {
 
         let mut interpreter = Interpreter::new();
         interpreter.interpret_statement(&statements[0]);
-        assert_eq!(interpreter.variables["a"].value, Value::Int(7));
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(7)
+        );
     }
 
     #[test]
@@ -752,6 +849,30 @@ mod tests {
             Err(err) => panic!("Error: {}", err),
         }
     }
+    #[test]
+    fn test_recursion_fn() {
+        let mut parser = Parser::new(Input::String(
+            "fn recursion(n) {if n == 0 {ret 1;} ret 1 + recursion(n - 1);} let a = recursion(3);"
+                .to_string(),
+        ));
+
+        let statements = parser.parse_program().unwrap();
+        let mut interpreter = Interpreter::new();
+
+        interpreter.interpret_statement(&statements[0]).unwrap();
+        interpreter.interpret_statement(&statements[1]).unwrap();
+
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(4)
+        );
+    }
 
     #[test]
     fn test_variable_fn() {
@@ -769,7 +890,16 @@ mod tests {
         }
 
         interpreter.interpret_statement(&statements[1]);
-        assert_eq!(interpreter.variables["a"].value, Value::Int(2));
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(2)
+        );
     }
     #[test]
     fn test_fn_print() {
@@ -804,7 +934,16 @@ mod tests {
         let mut interpreter = Interpreter::new();
         interpreter.interpret_program(&statements);
 
-        assert_eq!(interpreter.variables["a"].value, Value::Int(3));
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(3)
+        );
     }
 
     #[test]
@@ -817,7 +956,16 @@ mod tests {
         let mut interpreter = Interpreter::new();
         interpreter.interpret_program(&statements);
 
-        assert_eq!(interpreter.variables["a"].value, Value::Int(3));
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(3)
+        );
     }
 
     #[test]
@@ -831,6 +979,41 @@ mod tests {
         let mut interpreter = Interpreter::new();
         interpreter.interpret_program(&statements);
 
-        assert_eq!(interpreter.variables["a"].value, Value::Int(4));
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(4)
+        );
+    }
+
+    #[test]
+    fn test_vecs_and_strs() {
+        let mut parser = Parser::new(Input::File("src/tests/data/vecs_and_strs.ks".to_string()));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_statement(&statements[0]).unwrap();
+        interpreter.interpret_statement(&statements[1]).unwrap();
+        interpreter.interpret_statement(&statements[2]).unwrap();
+        interpreter.interpret_statement(&statements[3]).unwrap();
+
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("vowel_words")
+                .unwrap()
+                .value,
+            Value::Vector(vec![
+                Value::String("apple".to_string()),
+                Value::String("egg".to_string())
+            ])
+        );
     }
 }

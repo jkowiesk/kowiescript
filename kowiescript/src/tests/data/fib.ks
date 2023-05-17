@@ -6,6 +6,6 @@ fn fibonacci(n) {
   }
 }
 
-let a = 10;  // Replace with the desired value of n
-let fib_number = fibonacci(a);
+let n = 10;  // Replace with the desired value of n
+let fib_number = fibonacci(n);
 print(fib_number);
