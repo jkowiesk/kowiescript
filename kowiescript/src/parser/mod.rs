@@ -376,10 +376,16 @@ impl<'a> Parser<'a> {
                     _ => Ok(IteratorExpression::Identifier(name)),
                 }
             }
-            Token::FnIdent(name) => Ok(IteratorExpression::FunctionCall(FunctionCall {
-                name,
-                args: self.parse_arguments()?,
-            })),
+            Token::FnIdent(name) => {
+                self.lexer.next_token()?;
+                self.parse_token(Token::LeftParen)?;
+                let args = self.parse_arguments()?;
+                self.parse_token(Token::RightParen)?;
+                Ok(IteratorExpression::FunctionCall(FunctionCall {
+                    name,
+                    args,
+                }))
+            }
             Token::VecAcc(name) => {
                 self.lexer.next_token()?;
                 self.parse_token(Token::LeftBracket)?;
@@ -897,7 +903,7 @@ impl ParserError {
             UnexpectedTokens(given_tokens) => {
                 let given_tokens = given_tokens
                     .iter()
-                    .map(|token| format!("{}", token))
+                    .map(|token| format!("'{}'", token))
                     .collect::<Vec<String>>()
                     .join(", ");
 
@@ -909,7 +915,7 @@ impl ParserError {
             UnexpectedExpr(given_strings) => {
                 let given_strings = given_strings
                     .iter()
-                    .map(|string| string.to_owned())
+                    .map(|string| format!("'{}'", string))
                     .collect::<Vec<String>>()
                     .join(", ");
 
@@ -1094,6 +1100,16 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_fn_ret_vec() {
+        let mut parser = Parser::new(Input::String("for a in f() {}".to_string()));
+        let statement = parser.parse_statement().unwrap();
+        assert_eq!(
+            ron::to_string(&statement.stmt).unwrap(),
+            "ForLoop((iter_var:\"a\",iterator:FunctionCall((name:\"f\",args:[])),body:[]))"
+        )
+    }
+
+    #[test]
     fn test_parse_match_no_body() {
         let mut parser = Parser::new(Input::String("match x {default {}} ".to_string()));
         let statement = parser.parse_statement().unwrap();
@@ -1213,7 +1229,7 @@ mod tests {
         if let Err(err) = result {
             assert_eq!(
                 err.to_string(),
-                "Syntax Error at line 1: Unexpected expression: got '1' expected factor, identifier, vector"
+                "Syntax Error at line 1: Unexpected expression: got '1' expected 'factor', 'identifier', 'vector'"
             );
         } else {
             panic!("Expected error");

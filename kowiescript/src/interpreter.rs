@@ -153,13 +153,26 @@ impl Interpreter {
     }
     fn interpret_assignment(&mut self, assignment: &Assignment) -> Result<(), Box<dyn Error>> {
         let value = self.evaluate_expression(&assignment.expression)?;
-        // TODO: Remove panic
-        self.variables
-            .last_mut()
-            .unwrap()
-            .get_mut(&assignment.name)
-            .unwrap()
-            .value = value;
+        let var = self.variables.last_mut().unwrap().get_mut(&assignment.name);
+
+        match var {
+            Some(var) => {
+                if let VarKind::Constant = var.kind {
+                    return Err(InterpreterError::boxed(
+                        *self.lines.last().unwrap(),
+                        InterpreterErrorKind::ConstantReassignment(assignment.name.clone()),
+                    ));
+                } else {
+                    var.value = value;
+                }
+            }
+            None => {
+                return Err(InterpreterError::boxed(
+                    *self.lines.last().unwrap(),
+                    InterpreterErrorKind::VariableNotDeclared(assignment.name.clone()),
+                ))
+            }
+        }
 
         Ok(())
     }
@@ -304,7 +317,10 @@ impl Interpreter {
                         ))
                     }
                 },
-                _ => unimplemented!("Arithmetic operation not implemented."),
+                _ => Err(InterpreterError::boxed(
+                    *self.lines.last().unwrap(),
+                    InterpreterErrorKind::ArithmeticOperator(op.clone()),
+                ))?,
             };
         }
 
@@ -349,7 +365,10 @@ impl Interpreter {
                         ))
                     }
                 },
-                _ => unimplemented!("Arithmetic operation not implemented."),
+                _ => Err(InterpreterError::boxed(
+                    *self.lines.last().unwrap(),
+                    InterpreterErrorKind::ArithmeticOperator(op.clone()),
+                ))?,
             };
         }
 
@@ -360,7 +379,7 @@ impl Interpreter {
         let inverted_value = self.evaluate_inversion(&conversion.inversion)?;
 
         if let Some(conversion_type) = &conversion.to {
-            Ok(self.convert_value(inverted_value, conversion_type))
+            Ok(self.convert_value(inverted_value, conversion_type)?)
         } else {
             Ok(inverted_value) // No conversion specified, return the inverted value as is
         }
@@ -400,7 +419,10 @@ impl Interpreter {
                 return Ok(var.value.clone());
             }
         }
-        panic!("Variable is not defined.");
+        return Err(InterpreterError::boxed(
+            *self.lines.last().unwrap(),
+            InterpreterErrorKind::VariableNotDeclared(name.to_string()),
+        ));
     }
 
     fn evaluate_literal(&mut self, literal: &Literal) -> Result<Value, Box<dyn Error>> {
@@ -436,17 +458,28 @@ impl Interpreter {
                 Ok(Value::Void)
             }
             "push" => {
-                // pushes a value to a vector which is in the last scope of the variables where arguments are first name of identifier and second value to add
                 let vector_name = match &args[0] {
                     Value::String(name) => name,
-                    _ => panic!("First argument of push must be an identifier."),
+                    _ => {
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(String::from(
+                                "First argument must be a string",
+                            )),
+                        ))
+                    }
                 };
-                let vector = self
-                    .variables
-                    .last_mut()
-                    .unwrap()
-                    .get_mut(vector_name)
-                    .unwrap_or_else(|| panic!("Vector '{}' is not defined.", vector_name));
+                let vector = self.variables.last_mut().unwrap().get_mut(vector_name);
+                let vector = match vector {
+                    Some(vector) => vector,
+                    None => {
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::VariableNotDeclared(vector_name.clone()),
+                        ));
+                    }
+                };
+
                 let value = args[1].clone();
                 match vector {
                     Variable {
@@ -456,56 +489,64 @@ impl Interpreter {
                         vec.push(value);
                         Ok(Value::Void)
                     }
-                    _ => panic!("Second argument of push must be a vector."),
+                    _ => {
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(String::from(
+                                "Second argument must be a valid vector element",
+                            )),
+                        ))
+                    }
                 }
             }
             _name => {
-                let func = self
-                    .functions
-                    .get(name)
-                    .unwrap_or_else(|| panic!("Function '{}' is not defined.", name))
-                    .clone();
+                match self.functions.get(name) {
+                    Some(func) => {
+                        let func = func.clone();
 
-                // Create a new scope for this function call
-                self.variables.push(HashMap::new());
+                        // Create a new scope for this function call
+                        self.variables.push(HashMap::new());
 
-                for (i, param) in func.parameters.iter().enumerate() {
-                    self.variables.last_mut().unwrap().insert(
-                        param.name.clone(),
-                        Variable {
-                            kind: param.kind.clone(),
-                            value: args[i].clone(),
-                        },
-                    );
-                }
+                        for (i, param) in func.parameters.iter().enumerate() {
+                            self.variables.last_mut().unwrap().insert(
+                                param.name.clone(),
+                                Variable {
+                                    kind: param.kind.clone(),
+                                    value: args[i].clone(),
+                                },
+                            );
+                        }
 
-                for statement in &func.body.clone() {
-                    self.interpret_statement(statement)?;
-                    let ret = self.variables.last().unwrap().get("ret");
-                    if ret.is_some() {
-                        break;
-                    }
-                }
+                        let mut ret = None;
 
-                // println!("{:?}", self.variables.last().unwrap().get("ret"));
+                        for statement in &func.body {
+                            self.interpret_statement(statement)?;
+                            ret = self.variables.last().unwrap().get("ret").cloned();
+                            if ret.is_some() {
+                                break;
+                            }
+                        }
 
-                //remove local variables from the scope
-                for param in func.parameters.iter() {
-                    self.variables.last_mut().unwrap().remove(&param.name);
-                }
+                        //remove local variables from the scope
+                        for param in func.parameters.iter() {
+                            self.variables.last_mut().unwrap().remove(&param.name);
+                        }
 
-                let ret = match self.variables.last_mut().unwrap().get("ret").cloned() {
-                    Some(ret) => {
-                        self.variables.last_mut().unwrap().remove("ret");
+                        let ret = ret.unwrap_or(Variable {
+                            kind: VarKind::Mutable, // Or the default kind you wish to use
+                            value: Value::Void,
+                        });
+
+                        // Remove the function's scope
+                        self.variables.pop();
+
                         Ok(ret.value)
                     }
-                    None => Ok(Value::Void),
-                };
-
-                // Remove the function's scope
-                self.variables.pop();
-
-                ret
+                    None => Err(InterpreterError::boxed(
+                        *self.lines.last().unwrap(),
+                        InterpreterErrorKind::FunctionNotDeclared(name.to_string()),
+                    )),
+                }
             }
         }
     }
@@ -516,7 +557,12 @@ impl Interpreter {
     ) -> Result<Value, Box<dyn Error>> {
         let index = match self.evaluate_expression(&vector_access.index)? {
             Value::Int(int) => int,
-            _ => panic!(""),
+            _ => {
+                return Err(InterpreterError::boxed(
+                    *self.lines.last().unwrap(),
+                    InterpreterErrorKind::Error(String::from("Index must be an integer value")),
+                ))
+            }
         };
 
         match &vector_access.vector_expr {
@@ -526,34 +572,60 @@ impl Interpreter {
                         match &vector.value {
                             Value::Vector(values) => {
                                 if index < 0 || index >= values.len() as i64 {
-                                    panic!("Index out of bounds.");
+                                    return Err(InterpreterError::boxed(
+                                        *self.lines.last().unwrap(),
+                                        InterpreterErrorKind::IndexOutOfBounds(index as usize),
+                                    ));
                                 }
                                 return Ok(values[index as usize].clone());
                             }
                             Value::String(string) => {
                                 if index < 0 || index >= string.len() as i64 {
-                                    panic!("Index out of bounds.");
+                                    return Err(InterpreterError::boxed(
+                                        *self.lines.last().unwrap(),
+                                        InterpreterErrorKind::IndexOutOfBounds(index as usize),
+                                    ));
                                 }
                                 return Ok(Value::String(
                                     string.chars().nth(index as usize).unwrap().to_string(),
                                 ));
                             }
-                            _ => panic!("The variable is not a vector."),
+                            _ => {
+                                return Err(InterpreterError::boxed(
+                                    *self.lines.last().unwrap(),
+                                    InterpreterErrorKind::Error(
+                                        "Variable is not a vector".to_string(),
+                                    ),
+                                ))
+                            }
                         }
                     }
                 }
-                panic!("Vector is not defined.");
+                return Err(InterpreterError::boxed(
+                    *self.lines.last().unwrap(),
+                    InterpreterErrorKind::Error("Variable not defined".to_string()),
+                ));
             }
             VectorExpr::FunctionCall(func_call) => {
                 let vector = self.evaluate_function_call(func_call)?;
                 match vector {
                     Value::Vector(values) => {
                         if index < 0 || index >= values.len() as i64 {
-                            panic!("Index out of bounds.");
+                            return Err(InterpreterError::boxed(
+                                *self.lines.last().unwrap(),
+                                InterpreterErrorKind::IndexOutOfBounds(index as usize),
+                            ));
                         }
                         Ok(values[index as usize].clone())
                     }
-                    _ => panic!("The function doesn't return a vector."),
+                    _ => {
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(
+                                "Function doesn't return vector".to_string(),
+                            ),
+                        ))
+                    }
                 }
             }
         }
@@ -573,7 +645,12 @@ impl Interpreter {
                             value
                         }
                     }
-                    _ => panic!("Cannot iterate over non-int range."),
+                    _ => {
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::RangeExpressionExpected,
+                        ))
+                    }
                 };
                 let end = match self.evaluate_factor(&range.end)? {
                     Value::Int(value) => {
@@ -583,7 +660,12 @@ impl Interpreter {
                             value
                         }
                     }
-                    _ => panic!("Cannot iterate over non-int range."),
+                    _ => {
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::RangeExpressionExpected,
+                        ))
+                    }
                 };
 
                 // range to Vec<value>
@@ -601,24 +683,46 @@ impl Interpreter {
                     if let Some(var) = scope.get(ident) {
                         match &var.value {
                             Value::Vector(values) => return Ok(values.clone()),
-                            _ => panic!("Cannot iterate over non-vector."),
+                            _ => {
+                                return Err(InterpreterError::boxed(
+                                    *self.lines.last().unwrap(),
+                                    InterpreterErrorKind::RangeExpressionExpected,
+                                ))
+                            }
                         }
                     }
                 }
-                panic!("Variable doesn't exist.")
+                Err(InterpreterError::boxed(
+                    *self.lines.last().unwrap(),
+                    InterpreterErrorKind::Error("Empty iterator expression".to_string()),
+                ))
             }
             IteratorExpression::FunctionCall(func_call) => {
                 let vector = self.evaluate_function_call(func_call)?;
                 match vector {
                     Value::Vector(values) => Ok(values),
-                    _ => panic!("Cannot iterate over non-vector."),
+                    _ => {
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(
+                                "Function doesn't return vector".to_string(),
+                            ),
+                        ))
+                    }
                 }
             }
             IteratorExpression::VectorAccess(vector_access) => {
                 let vector = self.evaluate_vector_access(vector_access)?;
                 match vector {
                     Value::Vector(values) => Ok(values),
-                    _ => panic!("Cannot iterate over non-vector."),
+                    _ => {
+                        return Err(InterpreterError::boxed(
+                            *self.lines.last().unwrap(),
+                            InterpreterErrorKind::Error(
+                                "Cannot iterate over not-vector".to_string(),
+                            ),
+                        ))
+                    }
                 }
             }
         }
@@ -639,8 +743,12 @@ impl Interpreter {
         }
     }
 
-    fn convert_value(&self, value: Value, conversion_type: &ConversionType) -> Value {
-        match value {
+    fn convert_value(
+        &self,
+        value: Value,
+        conversion_type: &ConversionType,
+    ) -> Result<Value, Box<dyn Error>> {
+        Ok(match value {
             Value::Int(int) => match conversion_type {
                 ConversionType::Int => Value::Int(int),
                 ConversionType::Float => Value::Float(int as f64),
@@ -665,9 +773,19 @@ impl Interpreter {
                 ConversionType::String => Value::String(bool.to_string()),
                 ConversionType::Bool => Value::Bool(bool),
             },
-            Value::Void => unimplemented!("Void conversion is not implemented yet."),
-            Value::Vector(_) => unimplemented!("Vector conversion is not implemented yet."),
-        }
+            Value::Void => {
+                return Err(InterpreterError::boxed(
+                    *self.lines.last().unwrap(),
+                    InterpreterErrorKind::Error("Cannot convert void".to_string()),
+                ))
+            }
+            Value::Vector(_) => {
+                return Err(InterpreterError::boxed(
+                    *self.lines.last().unwrap(),
+                    InterpreterErrorKind::Error("Cannot convert vector".to_string()),
+                ))
+            }
+        })
     }
 
     fn negate_value(&self, value: Value) -> Value {
@@ -684,6 +802,12 @@ impl Interpreter {
 
 pub enum InterpreterErrorKind {
     Error(String),
+    IndexOutOfBounds(usize),
+    VariableNotDeclared(String),
+    FunctionNotDeclared(String),
+    RangeExpressionExpected,
+    ArithmeticOperator(ArithmeticOperator),
+    ConstantReassignment(String),
 }
 
 #[derive(Debug)]
@@ -698,6 +822,13 @@ impl InterpreterError {
 
         let description = match kind {
             Error(str) => str,
+            IndexOutOfBounds(index) => format!("Index '{}' is out of bounds", index),
+            VariableNotDeclared(ident) => format!("Variable '{}' not defined", ident),
+            FunctionNotDeclared(ident) => format!("Function '{}' not defined", ident),
+            ArithmeticOperator(op) => format!("Cannot use arithmetic operator {:?}", op),
+            ConstantReassignment(ident) => format!("Cannot reassign constant '{}'", ident),
+            RangeExpressionExpected => "Cannot iterate over non-int range.".to_string(),
+
             _ => "Unknown error".to_string(),
         };
 
@@ -755,12 +886,25 @@ mod tests {
 
     #[test]
     fn test_interpret_modulo_w_plus_statement() {
-        let mut parser = Parser::new(Input::String("1 +  2 * 3 ".to_string()));
+        let mut parser = Parser::new(Input::String("1 +  3 % 2 ".to_string()));
         let expression = parser.parse_expression().unwrap();
 
         let mut interpreter = Interpreter::new();
         let result = interpreter.evaluate_expression(&expression).unwrap();
-        assert_eq!(result, Value::Int(7));
+        assert_eq!(result, Value::Int(2));
+    }
+
+    #[test]
+    fn test_const_assignment() {
+        let mut parser = Parser::new(Input::String("const a = 1; a = 2;".to_string()));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        let result = interpreter.interpret_program(&statements);
+
+        if let Ok(_) = result {
+            panic!();
+        }
     }
 
     #[test]
@@ -925,6 +1069,50 @@ mod tests {
     }
 
     #[test]
+    fn test_for_loop_fn_call() {
+        let mut parser = Parser::new(Input::String(
+            "let a = 0;fn f() {ret [1,2];} for i in f() {a = a + i;}".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_program(&statements).unwrap();
+
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(3)
+        );
+    }
+
+    #[test]
+    fn test_for_loop_vec_acc() {
+        let mut parser = Parser::new(Input::String(
+            "let t = [[1, 2]];let a = 0;for i in t[0] {a = a + i;}".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_program(&statements).unwrap();
+
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(3)
+        );
+    }
+
+    #[test]
     fn test_for_loop() {
         let mut parser = Parser::new(Input::String(
             "let a = 0; for i in 1 to 3 {a = a + 1;}".to_string(),
@@ -950,6 +1138,28 @@ mod tests {
     fn test_if_simple() {
         let mut parser = Parser::new(Input::String(
             "let a = 2; if 1 == 1 and 2 == 2 {a = 3;}".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_program(&statements);
+
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(3)
+        );
+    }
+
+    #[test]
+    fn test_if_fn_call() {
+        let mut parser = Parser::new(Input::String(
+            "let a = 2; fn test() {ret true;} if test() {a = 3;}".to_string(),
         ));
         let statements = parser.parse_program().unwrap();
 
@@ -1015,5 +1225,37 @@ mod tests {
                 Value::String("egg".to_string())
             ])
         );
+    }
+
+    #[test]
+    fn test_fib() {
+        let mut parser = Parser::new(Input::File("src/tests/data/fib.ks".to_string()));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_statement(&statements[0]).unwrap();
+        interpreter.interpret_statement(&statements[1]).unwrap();
+        interpreter.interpret_statement(&statements[2]).unwrap();
+
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("fib_number")
+                .unwrap()
+                .value,
+            Value::Int(55)
+        );
+    }
+
+    #[test]
+    fn test_pattern() {
+        let mut parser = Parser::new(Input::File("src/tests/data/pattern.ks".to_string()));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_statement(&statements[0]).unwrap();
+        interpreter.interpret_statement(&statements[1]).unwrap();
     }
 }

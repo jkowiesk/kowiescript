@@ -1,4 +1,4 @@
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 
 use interpreter::Interpreter;
 use io::Input;
@@ -40,8 +40,9 @@ pub fn interpret() -> Result<(), String> {
     // some cool print for welcoming to my interpreter and saying about exit command
 
     loop {
+        print!("> ");
+        std::io::stdout().flush().unwrap();
         if let Some(Ok(line)) = lines.next() {
-            let is_err = false;
             if line.trim() == "exit" {
                 break;
             }
