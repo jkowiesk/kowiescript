@@ -15,6 +15,8 @@ pub struct Parser<'a> {
     lexer: Lexer<'a>,
 }
 
+pub type Ast = Vec<SourceStatement>;
+
 impl<'a> Parser<'a> {
     pub fn new(input: Input) -> Parser<'a> {
         Parser {
@@ -23,11 +25,10 @@ impl<'a> Parser<'a> {
     }
 
     // program = { statement };
-    pub fn parse_program(&mut self) -> Result<Vec<SourceStatement>, Box<dyn Error>> {
+    pub fn parse_program(&mut self) -> Result<Ast, Box<dyn Error>> {
         let mut statements: Vec<SourceStatement> = Vec::new();
 
-        while self.peek_and_check_is_not(Token::EOF)?.is_some() {
-            let statement = self.parse_statement()?;
+        while let Some(statement) = self.parse_statement()? {
             statements.push(statement);
         }
 
@@ -44,7 +45,11 @@ impl<'a> Parser<'a> {
     | return_statement
     | pattern_match_stmt
     | expression_stmt;  */
-    pub fn parse_statement(&mut self) -> Result<SourceStatement, Box<dyn Error>> {
+    pub fn parse_statement(&mut self) -> Result<Option<SourceStatement>, Box<dyn Error>> {
+        if self.peek_and_check_is(Token::EOF)?.is_some() {
+            return Ok(None);
+        }
+
         let statement = self
             .parse_var_declaration()
             .transpose()
@@ -58,10 +63,10 @@ impl<'a> Parser<'a> {
             .or_else(|| self.parse_expression_stmt().transpose());
 
         match statement {
-            Some(stmt) => Ok(SourceStatement {
+            Some(stmt) => Ok(Some(SourceStatement {
                 stmt: stmt?,
                 line: self.lexer.line,
-            }),
+            })),
             None => {
                 let token = self.lexer.next_token()?;
                 Err(ParserError::boxed(
@@ -164,7 +169,7 @@ impl<'a> Parser<'a> {
         Ok(Some(Statement::Return(Return { value })))
     }
 
-    // function_statement = "fn" identifier "(" [ parameter_list ] ")" "{" { statement } "}";
+    // function_statement = "fn" identifier "(" parameter_list ")" "{" { statement } "}";
     fn parse_fn(&mut self) -> Result<Option<Statement>, Box<dyn Error>> {
         if self.check_token(Token::Fn)?.is_none() {
             return Ok(None);
@@ -221,23 +226,25 @@ impl<'a> Parser<'a> {
         Ok(arguments)
     }
 
-    // parameter_list = parameter { "," parameter };
+    // parameter_list = [ parameter { "," parameter } ];
     fn parse_parameters(&mut self) -> Result<Vec<Parameter>, Box<dyn Error>> {
         let mut parameters: Vec<Parameter> = Vec::new();
 
-        while self.peek_and_check_is_not(Token::RightParen)?.is_some() {
-            let parameter = self.parse_parameter()?;
+        if let Some(parameter) = self.parse_parameter()? {
             parameters.push(parameter);
+        } else {
+            return Ok(parameters);
+        }
 
-            match self.lexer.peek_token()? {
-                Token::Comma => {
-                    self.lexer.next_token()?;
-                }
-                Token::RightParen => (),
-                _token => Err(ParserError::boxed(
+        while let Token::Comma = self.lexer.peek_token()? {
+            self.lexer.next_token()?;
+            let parameter = self.parse_parameter()?;
+            match parameter {
+                Some(parameter) => parameters.push(parameter),
+                None => Err(ParserError::boxed(
                     self.lexer.line,
-                    ParserErrorKind::UnexpectedTokens(vec![Token::Comma, Token::RightParen]),
-                    _token,
+                    ParserErrorKind::MissingParameter,
+                    Token::Comma,
                 ))?,
             }
         }
@@ -245,7 +252,7 @@ impl<'a> Parser<'a> {
         Ok(parameters)
     }
     // parameter = ["const"] identifier;
-    fn parse_parameter(&mut self) -> Result<Parameter, Box<dyn Error>> {
+    fn parse_parameter(&mut self) -> Result<Option<Parameter>, Box<dyn Error>> {
         let kind = match self.lexer.peek_token()? {
             Token::Const => {
                 self.lexer.next_token()?;
@@ -254,18 +261,15 @@ impl<'a> Parser<'a> {
             _ => VarKind::Mutable,
         };
 
-        let name = match self.lexer.next_token()? {
-            Token::Identifier(name) => name,
-            _token => {
-                return Err(ParserError::boxed(
-                    self.lexer.line,
-                    ParserErrorKind::MissingIdent,
-                    _token,
-                ))
+        let name = match self.lexer.peek_token()? {
+            Token::Identifier(name) => {
+                self.lexer.next_token()?;
+                name
             }
+            _token => return Ok(None),
         };
 
-        Ok(Parameter { name, kind })
+        Ok(Some(Parameter { name, kind }))
     }
 
     // loop_substatement = "end;"
@@ -443,7 +447,16 @@ impl<'a> Parser<'a> {
 
         while self.peek_and_check_is_not(Token::RightBrace)?.is_some() {
             let statement = self.parse_statement()?;
-            statements.push(statement);
+            match statement {
+                Some(statement) => statements.push(statement),
+                None => {
+                    return Err(ParserError::boxed(
+                        self.lexer.line,
+                        ParserErrorKind::EOFToEarly,
+                        Token::And,
+                    ))
+                }
+            }
         }
 
         self.parse_token(Token::RightBrace)?;
@@ -859,6 +872,16 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn peek_and_check_is(&mut self, token: Token) -> Result<Option<Token>, Box<dyn Error>> {
+        let peeked = self.lexer.peek_token()?;
+
+        if peeked == token {
+            Ok(Some(token))
+        } else {
+            Ok(None)
+        }
+    }
+
     fn check_and_parse_token_if<F>(&mut self, condition: F) -> Result<Option<Token>, Box<dyn Error>>
     where
         F: FnOnce(Token) -> bool,
@@ -880,6 +903,8 @@ pub enum ParserErrorKind {
     UnexpectedExpr(Vec<String>),
     UnrecognizedStmt,
     NegativeRange,
+    MissingParameter,
+    EOFToEarly,
 }
 
 #[derive(Debug)]
@@ -896,10 +921,12 @@ impl ParserError {
         let description = match kind {
             NegativeRange => "range factor cannot be negative".to_string(),
             MissingIdent => format!("expected identifier got '{}'", agent),
+            MissingParameter => format!("expected parameter got '{}'", agent),
             UnrecognizedStmt => format!(
                 "Unrecognized statement started with '{}', are u the syntax is correct ?",
                 agent
             ),
+            EOFToEarly => "Unexpected EOF".to_string(),
             UnexpectedTokens(given_tokens) => {
                 let given_tokens = given_tokens
                     .iter()
@@ -961,35 +988,41 @@ mod tests {
     fn test_parse_statements() {
         let mut parser = Parser::new(Input::String("let a = 1 ;".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert!(matches!(statement.stmt, Statement::VarDeclaration(_)));
+        assert!(matches!(
+            statement.unwrap().stmt,
+            Statement::VarDeclaration(_)
+        ));
 
         let mut parser = Parser::new(Input::String("b = 3;".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert!(matches!(statement.stmt, Statement::Assignment(_)));
+        assert!(matches!(statement.unwrap().stmt, Statement::Assignment(_)));
 
         let mut parser = Parser::new(Input::String("for a in 1 to 2 {}".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert!(matches!(statement.stmt, Statement::ForLoop(_)));
+        assert!(matches!(statement.unwrap().stmt, Statement::ForLoop(_)));
 
         let mut parser = Parser::new(Input::String("if a == 1 {}".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert!(matches!(statement.stmt, Statement::Conditional(_)));
+        assert!(matches!(statement.unwrap().stmt, Statement::Conditional(_)));
 
         let mut parser = Parser::new(Input::String("fn test(const a, b, c) {}".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert!(matches!(statement.stmt, Statement::Function(_)));
+        assert!(matches!(statement.unwrap().stmt, Statement::Function(_)));
 
         let mut parser = Parser::new(Input::String("match x {default {}};".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert!(matches!(statement.stmt, Statement::PatternMatch(_)));
+        assert!(matches!(
+            statement.unwrap().stmt,
+            Statement::PatternMatch(_)
+        ));
 
         let mut parser = Parser::new(Input::String("ret 1;".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert!(matches!(statement.stmt, Statement::Return(_)));
+        assert!(matches!(statement.unwrap().stmt, Statement::Return(_)));
 
         let mut parser = Parser::new(Input::String("next;".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert!(matches!(statement.stmt, Statement::SubLoop(_)));
+        assert!(matches!(statement.unwrap().stmt, Statement::SubLoop(_)));
     }
 
     #[test]
@@ -997,7 +1030,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("let a = 1 + 2 * 3;".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "VarDeclaration((name:\"a\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None),(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[Multiply])],ops:[Add]),op:None,rhs:None)])])))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "VarDeclaration((name:\"a\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None),(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[Multiply])],ops:[Add]),op:None,rhs:None)])])))");
     }
 
     #[test]
@@ -1005,7 +1038,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("let a = (1 + 2) * 3;".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "VarDeclaration((name:\"a\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Parenthesized((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])])),negated:false),to:None),(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[Multiply])],ops:[]),op:None,rhs:None)])])))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "VarDeclaration((name:\"a\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Parenthesized((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])])),negated:false),to:None),(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[Multiply])],ops:[]),op:None,rhs:None)])])))");
     }
 
     #[test]
@@ -1029,7 +1062,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("for t in 1 to 2 {}".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "ForLoop((iter_var:\"t\",iterator:Range((start:Literal(Int(1)),end:Literal(Int(2)))),body:[]))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "ForLoop((iter_var:\"t\",iterator:Range((start:Literal(Int(1)),end:Literal(Int(2)))),body:[]))");
     }
 
     #[test]
@@ -1037,7 +1070,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("for vowel in [1, 2, 3] { }".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "ForLoop((iter_var:\"vowel\",iterator:Vector((values:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),body:[]))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "ForLoop((iter_var:\"vowel\",iterator:Vector((values:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),body:[]))");
     }
 
     #[test]
@@ -1045,7 +1078,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("for vowel in test[1] { }".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        println!("{}", ron::to_string(&statement.stmt).unwrap());
+        println!("{}", ron::to_string(&statement.unwrap().stmt).unwrap());
     }
 
     #[test]
@@ -1053,7 +1086,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("for t in i to 2 {}".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "ForLoop((iter_var:\"t\",iterator:Range((start:Identifier(\"i\"),end:Literal(Int(2)))),body:[]))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "ForLoop((iter_var:\"t\",iterator:Range((start:Identifier(\"i\"),end:Literal(Int(2)))),body:[]))");
     }
 
     #[test]
@@ -1062,7 +1095,7 @@ mod tests {
         let statement = parser.parse_statement().unwrap();
 
         assert_eq!(
-            ron::to_string(&statement.stmt).unwrap(),
+            ron::to_string(&statement.unwrap().stmt).unwrap(),
             "ForLoop((iter_var:\"t\",iterator:Identifier(\"m\"),body:[]))"
         );
     }
@@ -1071,7 +1104,7 @@ mod tests {
     fn test_parse_if_no_body() {
         let mut parser = Parser::new(Input::String("if 1 == 2 {}".to_string()));
         let statement = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[],else_body:None))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[],else_body:None))");
     }
     #[test]
     fn test_parse_if_in_if_body() {
@@ -1080,7 +1113,7 @@ mod tests {
         ));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[(stmt:Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:Some(NotEqual),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[],else_body:Some([]))),line:1)],else_body:None))")
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[(stmt:Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:Some(NotEqual),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[],else_body:Some([]))),line:1)],else_body:None))")
     }
 
     #[test]
@@ -1088,7 +1121,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("if 1 == 2 { a = 5 + 1;}".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[(stmt:Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(5)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])]))),line:1)],else_body:None))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[(stmt:Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(5)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])]))),line:1)],else_body:None))");
     }
 
     #[test]
@@ -1096,7 +1129,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("fn mark(const a, b) {}".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "Function((name:\"mark\",parameters:[(name:\"a\",kind:Constant),(name:\"b\",kind:Mutable)],body:[]))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "Function((name:\"mark\",parameters:[(name:\"a\",kind:Constant),(name:\"b\",kind:Mutable)],body:[]))");
     }
 
     #[test]
@@ -1104,7 +1137,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("for a in f() {}".to_string()));
         let statement = parser.parse_statement().unwrap();
         assert_eq!(
-            ron::to_string(&statement.stmt).unwrap(),
+            ron::to_string(&statement.unwrap().stmt).unwrap(),
             "ForLoop((iter_var:\"a\",iterator:FunctionCall((name:\"f\",args:[])),body:[]))"
         )
     }
@@ -1114,7 +1147,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("match x {default {}} ".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "PatternMatch((expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"x\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),when_branches:[],default_branch:[]))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "PatternMatch((expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"x\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),when_branches:[],default_branch:[]))");
     }
 
     #[test]
@@ -1124,7 +1157,7 @@ mod tests {
         ));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "PatternMatch((expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"x\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),when_branches:[(pattern:(simple_exprs:[(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[Add])]),body:[(stmt:Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))),line:1)])],default_branch:[(stmt:Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))),line:1)]))");
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "PatternMatch((expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"x\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),when_branches:[(pattern:(simple_exprs:[(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(3)),negated:false),to:None)],ops:[])],ops:[Add])]),body:[(stmt:Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))),line:1)])],default_branch:[(stmt:Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))),line:1)]))");
     }
 
     #[test]
@@ -1132,7 +1165,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("23 + 1;".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(23)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])]))")
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(23)),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])]))")
     }
 
     #[test]
@@ -1161,7 +1194,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("print(12);".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&statement.stmt).unwrap(), "Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(12)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))")
+        assert_eq!(ron::to_string(&statement.unwrap().stmt).unwrap(), "Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(12)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))")
     }
 
     #[test]
@@ -1178,7 +1211,7 @@ mod tests {
         let statement = parser.parse_statement().unwrap();
 
         assert_eq!(
-            ron::to_string(&statement.stmt).unwrap(),
+            ron::to_string(&statement.unwrap().stmt).unwrap(),
             "Assignment((name:\"a\",expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))"
         );
     }
@@ -1188,7 +1221,7 @@ mod tests {
         let mut parser = Parser::new(Input::String("let a = [];".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        println!("{}", ron::to_string(&statement.stmt).unwrap());
+        println!("{}", ron::to_string(&statement.unwrap().stmt).unwrap());
     }
 
     #[test]
@@ -1248,16 +1281,16 @@ mod tests {
     fn test_parse_fib_program() {
         let mut parser = Parser::new(Input::File("src/tests/data/fib.ks".to_string()));
         let fibonachi_fn = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&fibonachi_fn.stmt).unwrap(), "Function((name:\"fibonacci\",parameters:[(name:\"n\",kind:Mutable)],body:[(stmt:Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:Some(LessEqual),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[(stmt:Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))),line:3)],else_body:Some([(stmt:Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[Subtract]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[Subtract]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])])))),line:5)]))),line:6)]))");
+        assert_eq!(ron::to_string(&fibonachi_fn.unwrap().stmt).unwrap(), "Function((name:\"fibonacci\",parameters:[(name:\"n\",kind:Mutable)],body:[(stmt:Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:Some(LessEqual),rhs:Some((terms:[(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[(stmt:Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))),line:3)],else_body:Some([(stmt:Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(1)),negated:false),to:None)],ops:[])],ops:[Subtract]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[]),(conversions:[(inversion:(value:Literal(Int(2)),negated:false),to:None)],ops:[])],ops:[Subtract]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[Add]),op:None,rhs:None)])])))),line:5)]))),line:6)]))");
 
         let n = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&n.stmt).unwrap(), "VarDeclaration((name:\"n\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(10)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
+        assert_eq!(ron::to_string(&n.unwrap().stmt).unwrap(), "VarDeclaration((name:\"n\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(10)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
 
         let fib_num = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&fib_num.stmt).unwrap(), "VarDeclaration((name:\"fib_number\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
+        assert_eq!(ron::to_string(&fib_num.unwrap().stmt).unwrap(), "VarDeclaration((name:\"fib_number\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"fibonacci\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"n\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
 
         let print = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&print.stmt).unwrap(),"Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"fib_number\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))");
+        assert_eq!(ron::to_string(&print.unwrap().stmt).unwrap(),"Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"fib_number\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))");
     }
 
     #[test]
@@ -1265,10 +1298,10 @@ mod tests {
         let mut parser = Parser::new(Input::File("src/tests/data/pattern.ks".to_string()));
         let var = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&var.stmt).unwrap(), "VarDeclaration((name:\"how\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"well\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
+        assert_eq!(ron::to_string(&var.unwrap().stmt).unwrap(), "VarDeclaration((name:\"how\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"well\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
 
         let pattern = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&pattern.stmt).unwrap(), "PatternMatch((expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"how\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),when_branches:[(pattern:(simple_exprs:[(terms:[(conversions:[(inversion:(value:Literal(String(\"bad\")),negated:false),to:None)],ops:[])],ops:[]),(terms:[(conversions:[(inversion:(value:Literal(String(\"awfull\")),negated:false),to:None)],ops:[])],ops:[])]),body:[(stmt:Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"Not good at all :(\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])),line:5)]),(pattern:(simple_exprs:[(terms:[(conversions:[(inversion:(value:Literal(String(\"well\")),negated:false),to:None)],ops:[])],ops:[])]),body:[(stmt:Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"Great success !!!\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])),line:8)])],default_branch:[(stmt:Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"What ???\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])),line:11)]))");
+        assert_eq!(ron::to_string(&pattern.unwrap().stmt).unwrap(), "PatternMatch((expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"how\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),when_branches:[(pattern:(simple_exprs:[(terms:[(conversions:[(inversion:(value:Literal(String(\"bad\")),negated:false),to:None)],ops:[])],ops:[]),(terms:[(conversions:[(inversion:(value:Literal(String(\"awfull\")),negated:false),to:None)],ops:[])],ops:[])]),body:[(stmt:Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"Not good at all :(\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])),line:5)]),(pattern:(simple_exprs:[(terms:[(conversions:[(inversion:(value:Literal(String(\"well\")),negated:false),to:None)],ops:[])],ops:[])]),body:[(stmt:Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"Great success !!!\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])),line:8)])],default_branch:[(stmt:Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"print\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"What ???\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])),line:11)]))");
     }
 
     #[test]
@@ -1276,22 +1309,22 @@ mod tests {
         let mut parser = Parser::new(Input::File("src/tests/data/vecs_and_strs.ks".to_string()));
         let func = parser.parse_statement().unwrap();
 
-        assert_eq!(ron::to_string(&func.stmt).unwrap(), "Function((name:\"starts_with_vowel\",parameters:[(name:\"word\",kind:Mutable)],body:[(stmt:VarDeclaration((name:\"first_letter\",kind:Constant,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:VectorAccess((vector_expr:Identifier(\"word\"),index:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(0)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))),line:2),(stmt:ForLoop((iter_var:\"vowel\",iterator:Vector((values:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"a\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"e\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"i\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"o\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"u\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),body:[(stmt:Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"first_letter\"),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Identifier(\"vowel\"),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[(stmt:Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Bool(true)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))),line:5)],else_body:None)),line:7)])),line:7),(stmt:Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Bool(false)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))),line:8)]))");
+        assert_eq!(ron::to_string(&func.unwrap().stmt).unwrap(), "Function((name:\"starts_with_vowel\",parameters:[(name:\"word\",kind:Mutable)],body:[(stmt:VarDeclaration((name:\"first_letter\",kind:Constant,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:VectorAccess((vector_expr:Identifier(\"word\"),index:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Int(0)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]))),line:2),(stmt:ForLoop((iter_var:\"vowel\",iterator:Vector((values:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"a\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"e\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"i\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"o\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"u\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),body:[(stmt:Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"first_letter\"),negated:false),to:None)],ops:[])],ops:[]),op:Some(Equal),rhs:Some((terms:[(conversions:[(inversion:(value:Identifier(\"vowel\"),negated:false),to:None)],ops:[])],ops:[])))])]),then_body:[(stmt:Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Bool(true)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))),line:5)],else_body:None)),line:7)])),line:7),(stmt:Return((value:Some((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(Bool(false)),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))),line:8)]))");
 
         let words = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&words.stmt).unwrap(), "VarDeclaration((name:\"words\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Vector((values:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"apple\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"cat\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"dog\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"egg\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"fish\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"sheep\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
+        assert_eq!(ron::to_string(&words.unwrap().stmt).unwrap(), "VarDeclaration((name:\"words\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Vector((values:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"apple\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"cat\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"dog\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"egg\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"fish\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"sheep\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
 
         let vovewls = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&vovewls.stmt).unwrap(), "VarDeclaration((name:\"vowel_words\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Vector((values:[])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
+        assert_eq!(ron::to_string(&vovewls.unwrap().stmt).unwrap(), "VarDeclaration((name:\"vowel_words\",kind:Mutable,expression:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Vector((values:[])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])))");
 
         let for_loop = parser.parse_statement().unwrap();
-        assert_eq!(ron::to_string(&for_loop.stmt).unwrap(), "ForLoop((iter_var:\"word\",iterator:Identifier(\"words\"),body:[(stmt:Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"starts_with_vowel\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"word\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),then_body:[(stmt:Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"push\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"vowel_words\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"word\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])),line:16)],else_body:None)),line:18)]))");
+        assert_eq!(ron::to_string(&for_loop.unwrap().stmt).unwrap(), "ForLoop((iter_var:\"word\",iterator:Identifier(\"words\"),body:[(stmt:Conditional((condition:(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"starts_with_vowel\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"word\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),then_body:[(stmt:Expression((conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:FunctionCall((name:\"push\",args:[(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Literal(String(\"vowel_words\")),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])]),(conjunctions:[(relations:[(lhs:(terms:[(conversions:[(inversion:(value:Identifier(\"word\"),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])])),negated:false),to:None)],ops:[])],ops:[]),op:None,rhs:None)])])),line:16)],else_body:None)),line:18)]))");
     }
 
     fn copy() {
         let mut parser = Parser::new(Input::String("for t in 1 to 2 {}".to_string()));
         let statement = parser.parse_statement().unwrap();
 
-        println!("{}", ron::to_string(&statement.stmt).unwrap());
+        println!("{}", ron::to_string(&statement.unwrap().stmt).unwrap());
     }
 }

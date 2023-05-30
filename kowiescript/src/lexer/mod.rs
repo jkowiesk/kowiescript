@@ -77,7 +77,7 @@ impl<'a> Lexer<'a> {
             self.cur_token = Some(cur_token.clone());
         }
 
-        return token;
+        token
     }
 
     pub fn peek_token(&mut self) -> Result<Token, LexerError> {

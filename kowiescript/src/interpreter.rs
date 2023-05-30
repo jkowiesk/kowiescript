@@ -877,7 +877,7 @@ mod tests {
         let statement = parser.parse_statement().unwrap();
 
         let mut interpreter = Interpreter::new();
-        let result = interpreter.interpret_statement(&statement);
+        let result = interpreter.interpret_statement(&statement.unwrap());
 
         if let Ok(_) = result {
             panic!();
@@ -913,7 +913,9 @@ mod tests {
         let statement = parser.parse_statement().unwrap();
 
         let mut interpreter = Interpreter::new();
-        interpreter.interpret_statement(&statement).unwrap();
+        interpreter
+            .interpret_statement(&statement.unwrap())
+            .unwrap();
         assert_eq!(
             interpreter
                 .variables
