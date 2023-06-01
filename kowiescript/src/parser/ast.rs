@@ -1,9 +1,13 @@
 use std::{
-    fmt,
+    collections::HashMap,
+    error::Error,
+    fmt::{self, format},
     ops::{Add, Div, Mul, Rem, Sub},
 };
 
 use serde::{Deserialize, Serialize};
+
+use crate::interpreter::{Interpreter, InterpreterError, InterpreterErrorKind, Variable};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum VarKind {
@@ -236,6 +240,110 @@ pub struct RangeExpression {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Vector {
     pub values: Vec<Expression>,
+}
+
+pub enum InternalFunction {
+    Print(String),
+    Push(String),
+}
+
+pub trait Call {
+    fn call(&self, ctx: &mut Interpreter, args: Vec<Value>) -> Result<Value, Box<dyn Error>>;
+}
+use InterpreterErrorKind::*;
+
+impl Call for InternalFunction {
+    fn call(&self, ctx: &mut Interpreter, args: Vec<Value>) -> Result<Value, Box<dyn Error>> {
+        match self {
+            InternalFunction::Push(name) => {
+                let vector_name = match &args[0] {
+                    Value::String(name) => name,
+                    _ => {
+                        return Err(
+                            ctx.error(Error(String::from("First argument must be a string")))
+                        );
+                    }
+                };
+                let vector = ctx.variables.last_mut().unwrap().get_mut(vector_name);
+                let vector = match vector {
+                    Some(vector) => vector,
+                    None => {
+                        return Err(ctx.error(VariableNotDeclared(vector_name.to_string())));
+                    }
+                };
+
+                let value = args[1].clone();
+                match vector {
+                    Variable {
+                        kind: VarKind::Mutable,
+                        value: Value::Vector(vec),
+                    } => {
+                        vec.push(value);
+                        Ok(Value::Void)
+                    }
+                    _ => Err(ctx.error(Error(
+                        "Second argument must be a valid vector element".to_string(),
+                    ))),
+                }
+            }
+            InternalFunction::Print(_) => {
+                for arg in args {
+                    print!("{}", arg);
+                }
+                println!();
+                Ok(Value::Void)
+            }
+        }
+    }
+}
+
+impl Call for Function {
+    fn call(&self, ctx: &mut Interpreter, args: Vec<Value>) -> Result<Value, Box<dyn Error>> {
+        match ctx.functions.get(self.name.as_str()) {
+            Some(func) => {
+                let func = func.clone();
+
+                // Create a new scope for this function call
+                ctx.variables.push(HashMap::new());
+
+                for (i, param) in func.parameters.iter().enumerate() {
+                    ctx.variables.last_mut().unwrap().insert(
+                        param.name.clone(),
+                        Variable {
+                            kind: param.kind.clone(),
+                            value: args[i].clone(),
+                        },
+                    );
+                }
+
+                let mut ret = None;
+
+                for statement in &func.body {
+                    ctx.interpret_statement(statement)?;
+                    ret = ctx.variables.last().unwrap().get("ret").cloned();
+                    if ret.is_some() {
+                        break;
+                    }
+                }
+
+                //remove local variables from the scope
+                for param in func.parameters.iter() {
+                    ctx.variables.last_mut().unwrap().remove(&param.name);
+                }
+
+                let ret = ret.unwrap_or(Variable {
+                    kind: VarKind::Mutable, // Or the default kind you wish to use
+                    value: Value::Void,
+                });
+
+                // Remove the function's scope
+                ctx.variables.pop();
+
+                Ok(ret.value)
+            }
+            None => Err(ctx.error(FunctionNotDeclared(self.name.to_string()))),
+        }
+    }
 }
 
 // impl traits

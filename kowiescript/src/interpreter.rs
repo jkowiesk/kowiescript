@@ -1,11 +1,14 @@
 use std::{collections::HashMap, error::Error, fmt, vec};
 
-use crate::{parser::ast::*, Program};
+use crate::{
+    parser::ast::{ArithmeticOperator, *},
+    Program,
+};
 
 #[derive(Debug, Clone)]
 pub struct Variable {
-    kind: VarKind,
-    value: Value,
+    pub kind: VarKind,
+    pub value: Value,
 }
 
 pub struct Interpreter {
@@ -13,6 +16,7 @@ pub struct Interpreter {
     pub functions: HashMap<String, Function>,
     pub lines: Vec<usize>,
 }
+use InterpreterErrorKind::*;
 
 impl Interpreter {
     pub fn new() -> Self {
@@ -158,19 +162,13 @@ impl Interpreter {
         match var {
             Some(var) => {
                 if let VarKind::Constant = var.kind {
-                    return Err(InterpreterError::boxed(
-                        *self.lines.last().unwrap(),
-                        InterpreterErrorKind::ConstantReassignment(assignment.name.clone()),
-                    ));
+                    return Err(self.error(ConstantReassignment(assignment.name.clone())));
                 } else {
                     var.value = value;
                 }
             }
             None => {
-                return Err(InterpreterError::boxed(
-                    *self.lines.last().unwrap(),
-                    InterpreterErrorKind::VariableNotDeclared(assignment.name.clone()),
-                ))
+                return Err(self.error(VariableNotDeclared(assignment.name.clone())));
             }
         }
 
@@ -302,25 +300,16 @@ impl Interpreter {
                 ArithmeticOperator::Add => match result + term_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(msg),
-                        ))
+                        return Err(self.error(Error(msg)));
                     }
                 },
                 ArithmeticOperator::Subtract => match result - term_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(msg),
-                        ))
+                        return Err(self.error(Error(msg)));
                     }
                 },
-                _ => Err(InterpreterError::boxed(
-                    *self.lines.last().unwrap(),
-                    InterpreterErrorKind::ArithmeticOperator(op.clone()),
-                ))?,
+                _ => Err(self.error(ArithmeticOperatorErr(op.clone())))?,
             };
         }
 
@@ -341,34 +330,22 @@ impl Interpreter {
                 ArithmeticOperator::Multiply => match result * conversion_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(msg),
-                        ))
+                        return Err(self.error(Error(msg)));
                     }
                 },
                 ArithmeticOperator::Divide => match result / conversion_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(msg),
-                        ))
+                        return Err(self.error(Error(msg)));
                     }
                 },
                 ArithmeticOperator::Modulo => match result % conversion_value {
                     Ok(val) => val,
                     Err(msg) => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(msg),
-                        ))
+                        return Err(self.error(Error(msg)));
                     }
                 },
-                _ => Err(InterpreterError::boxed(
-                    *self.lines.last().unwrap(),
-                    InterpreterErrorKind::ArithmeticOperator(op.clone()),
-                ))?,
+                _ => Err(self.error(ArithmeticOperatorErr(op.clone())))?,
             };
         }
 
@@ -389,7 +366,7 @@ impl Interpreter {
         let value = self.evaluate_factor(&inversion.value)?;
 
         if inversion.negated {
-            Ok(self.negate_value(value))
+            self.negate_value(value)
         } else {
             Ok(value) // No negation, return the value as is
         }
@@ -419,10 +396,7 @@ impl Interpreter {
                 return Ok(var.value.clone());
             }
         }
-        return Err(InterpreterError::boxed(
-            *self.lines.last().unwrap(),
-            InterpreterErrorKind::VariableNotDeclared(name.to_string()),
-        ));
+        return Err(self.error(VariableNotDeclared(name.to_string())));
     }
 
     fn evaluate_literal(&mut self, literal: &Literal) -> Result<Value, Box<dyn Error>> {
@@ -461,22 +435,16 @@ impl Interpreter {
                 let vector_name = match &args[0] {
                     Value::String(name) => name,
                     _ => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(String::from(
-                                "First argument must be a string",
-                            )),
-                        ))
+                        return Err(
+                            self.error(Error(String::from("First argument must be a string")))
+                        );
                     }
                 };
                 let vector = self.variables.last_mut().unwrap().get_mut(vector_name);
                 let vector = match vector {
                     Some(vector) => vector,
                     None => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::VariableNotDeclared(vector_name.clone()),
-                        ));
+                        return Err(self.error(VariableNotDeclared(vector_name.to_string())));
                     }
                 };
 
@@ -490,12 +458,9 @@ impl Interpreter {
                         Ok(Value::Void)
                     }
                     _ => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(String::from(
-                                "Second argument must be a valid vector element",
-                            )),
-                        ))
+                        return Err(self.error(Error(
+                            "Second argument must be a valid vector element".to_string(),
+                        )));
                     }
                 }
             }
@@ -542,10 +507,7 @@ impl Interpreter {
 
                         Ok(ret.value)
                     }
-                    None => Err(InterpreterError::boxed(
-                        *self.lines.last().unwrap(),
-                        InterpreterErrorKind::FunctionNotDeclared(name.to_string()),
-                    )),
+                    None => Err(self.error(FunctionNotDeclared(name.to_string()))),
                 }
             }
         }
@@ -558,10 +520,7 @@ impl Interpreter {
         let index = match self.evaluate_expression(&vector_access.index)? {
             Value::Int(int) => int,
             _ => {
-                return Err(InterpreterError::boxed(
-                    *self.lines.last().unwrap(),
-                    InterpreterErrorKind::Error(String::from("Index must be an integer value")),
-                ))
+                return Err(self.error(Error("Index must be an integer value".to_string())));
             }
         };
 
@@ -572,59 +531,39 @@ impl Interpreter {
                         match &vector.value {
                             Value::Vector(values) => {
                                 if index < 0 || index >= values.len() as i64 {
-                                    return Err(InterpreterError::boxed(
-                                        *self.lines.last().unwrap(),
-                                        InterpreterErrorKind::IndexOutOfBounds(index as usize),
-                                    ));
+                                    return Err(self.error(IndexOutOfBounds(index as usize)));
                                 }
                                 return Ok(values[index as usize].clone());
                             }
                             Value::String(string) => {
                                 if index < 0 || index >= string.len() as i64 {
-                                    return Err(InterpreterError::boxed(
-                                        *self.lines.last().unwrap(),
-                                        InterpreterErrorKind::IndexOutOfBounds(index as usize),
-                                    ));
+                                    return Err(self.error(IndexOutOfBounds(index as usize)));
                                 }
                                 return Ok(Value::String(
                                     string.chars().nth(index as usize).unwrap().to_string(),
                                 ));
                             }
                             _ => {
-                                return Err(InterpreterError::boxed(
-                                    *self.lines.last().unwrap(),
-                                    InterpreterErrorKind::Error(
-                                        "Variable is not a vector".to_string(),
-                                    ),
-                                ))
+                                return Err(
+                                    self.error(Error("Variable is not a vector".to_string()))
+                                );
                             }
                         }
                     }
                 }
-                return Err(InterpreterError::boxed(
-                    *self.lines.last().unwrap(),
-                    InterpreterErrorKind::Error("Variable not defined".to_string()),
-                ));
+                return Err(self.error(VariableNotDeclared(ident.to_string())));
             }
             VectorExpr::FunctionCall(func_call) => {
                 let vector = self.evaluate_function_call(func_call)?;
                 match vector {
                     Value::Vector(values) => {
                         if index < 0 || index >= values.len() as i64 {
-                            return Err(InterpreterError::boxed(
-                                *self.lines.last().unwrap(),
-                                InterpreterErrorKind::IndexOutOfBounds(index as usize),
-                            ));
+                            return Err(self.error(IndexOutOfBounds(index as usize)));
                         }
                         Ok(values[index as usize].clone())
                     }
                     _ => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(
-                                "Function doesn't return vector".to_string(),
-                            ),
-                        ))
+                        return Err(self.error(Error("Function doesn't return vector".to_string())))
                     }
                 }
             }
@@ -646,10 +585,7 @@ impl Interpreter {
                         }
                     }
                     _ => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::RangeExpressionExpected,
-                        ))
+                        return Err(self.error(RangeExpressionExpected));
                     }
                 };
                 let end = match self.evaluate_factor(&range.end)? {
@@ -661,10 +597,7 @@ impl Interpreter {
                         }
                     }
                     _ => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::RangeExpressionExpected,
-                        ))
+                        return Err(self.error(RangeExpressionExpected));
                     }
                 };
 
@@ -684,30 +617,21 @@ impl Interpreter {
                         match &var.value {
                             Value::Vector(values) => return Ok(values.clone()),
                             _ => {
-                                return Err(InterpreterError::boxed(
-                                    *self.lines.last().unwrap(),
-                                    InterpreterErrorKind::RangeExpressionExpected,
-                                ))
+                                return Err(
+                                    self.error(InterpreterErrorKind::RangeExpressionExpected)
+                                )
                             }
                         }
                     }
                 }
-                Err(InterpreterError::boxed(
-                    *self.lines.last().unwrap(),
-                    InterpreterErrorKind::Error("Empty iterator expression".to_string()),
-                ))
+                Err(self.error(Error("Empty iterator expression".to_string())))
             }
             IteratorExpression::FunctionCall(func_call) => {
                 let vector = self.evaluate_function_call(func_call)?;
                 match vector {
                     Value::Vector(values) => Ok(values),
                     _ => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(
-                                "Function doesn't return vector".to_string(),
-                            ),
-                        ))
+                        return Err(self.error(Error("Function doesn't return vector".to_string())))
                     }
                 }
             }
@@ -716,12 +640,7 @@ impl Interpreter {
                 match vector {
                     Value::Vector(values) => Ok(values),
                     _ => {
-                        return Err(InterpreterError::boxed(
-                            *self.lines.last().unwrap(),
-                            InterpreterErrorKind::Error(
-                                "Cannot iterate over not-vector".to_string(),
-                            ),
-                        ))
+                        return Err(self.error(Error("Cannot iterate over not-vector".to_string())))
                     }
                 }
             }
@@ -773,30 +692,24 @@ impl Interpreter {
                 ConversionType::String => Value::String(bool.to_string()),
                 ConversionType::Bool => Value::Bool(bool),
             },
-            Value::Void => {
-                return Err(InterpreterError::boxed(
-                    *self.lines.last().unwrap(),
-                    InterpreterErrorKind::Error("Cannot convert void".to_string()),
-                ))
-            }
-            Value::Vector(_) => {
-                return Err(InterpreterError::boxed(
-                    *self.lines.last().unwrap(),
-                    InterpreterErrorKind::Error("Cannot convert vector".to_string()),
-                ))
-            }
+            Value::Void => return Err(self.error(Error("Cannot convert void".to_string()))),
+            Value::Vector(_) => return Err(self.error(Error("Cannot convert vector".to_string()))),
         })
     }
 
-    fn negate_value(&self, value: Value) -> Value {
+    fn negate_value(&self, value: Value) -> Result<Value, Box<dyn Error>> {
         match value {
-            Value::Int(int) => Value::Int(-int),
-            Value::Float(float) => Value::Float(-float),
-            Value::String(string) => Value::String(string),
-            Value::Bool(bool) => Value::Bool(!bool),
-            Value::Void => panic!("Void negation is not possible."),
-            Value::Vector(_) => panic!("Vector negation is not possible."),
+            Value::Int(int) => Ok(Value::Int(-int)),
+            Value::Float(float) => Ok(Value::Float(-float)),
+            Value::String(string) => Ok(Value::String(string)),
+            Value::Bool(bool) => Ok(Value::Bool(!bool)),
+            Value::Void => Err(self.error(Error("Cannot negate void".to_string()))),
+            Value::Vector(_) => Err(self.error(Error("Cannot negate vector".to_string()))),
         }
+    }
+
+    pub fn error(&self, kind: InterpreterErrorKind) -> Box<dyn Error> {
+        InterpreterError::boxed(*self.lines.last().unwrap(), kind)
     }
 }
 
@@ -806,7 +719,7 @@ pub enum InterpreterErrorKind {
     VariableNotDeclared(String),
     FunctionNotDeclared(String),
     RangeExpressionExpected,
-    ArithmeticOperator(ArithmeticOperator),
+    ArithmeticOperatorErr(ArithmeticOperator),
     ConstantReassignment(String),
 }
 
@@ -825,7 +738,7 @@ impl InterpreterError {
             IndexOutOfBounds(index) => format!("Index '{}' is out of bounds", index),
             VariableNotDeclared(ident) => format!("Variable '{}' not defined", ident),
             FunctionNotDeclared(ident) => format!("Function '{}' not defined", ident),
-            ArithmeticOperator(op) => format!("Cannot use arithmetic operator {:?}", op),
+            ArithmeticOperatorErr(op) => format!("Cannot use arithmetic operator {:?}", op),
             ConstantReassignment(ident) => format!("Cannot reassign constant '{}'", ident),
             RangeExpressionExpected => "Cannot iterate over non-int range.".to_string(),
 
