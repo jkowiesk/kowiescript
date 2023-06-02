@@ -1042,7 +1042,7 @@ mod tests {
         let statements = parser.parse_program().unwrap();
 
         let mut interpreter = Interpreter::new();
-        interpreter.interpret_program(&statements);
+        interpreter.interpret_program(&statements).unwrap();
 
         assert_eq!(
             interpreter
