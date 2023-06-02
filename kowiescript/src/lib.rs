@@ -23,7 +23,7 @@ pub fn run_program(input: Input) -> Result<(), String> {
         Err(err) => return Err(err.to_string()),
     };
 
-    let mut interpreter = interpreter::Interpreter::new();
+    let mut interpreter = interpreter::Interpreter::default();
     match interpreter.interpret_program(&program) {
         Ok(_) => (),
         Err(err) => return Err(err.to_string()),
@@ -33,7 +33,7 @@ pub fn run_program(input: Input) -> Result<(), String> {
 }
 
 pub fn interpret() -> Result<(), String> {
-    let mut interpreter = Interpreter::new();
+    let mut interpreter = Interpreter::default();
     let stdin = std::io::stdin();
     let input = stdin.lock();
     let mut lines = input.lines();

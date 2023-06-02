@@ -1,7 +1,7 @@
-let how = "well";
+let how = "awful";
 
 match how {
-  when "bad" either "awfull" then {
+  when "bad" either "awful" then {
   	print("Not good at all :(");
   }
   when "well" then {

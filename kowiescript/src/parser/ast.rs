@@ -242,20 +242,71 @@ pub struct Vector {
     pub values: Vec<Expression>,
 }
 
+// interpreters types
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum InternalFunction {
-    Print(String),
-    Push(String),
+    Print,
+    Push,
+}
+
+impl InternalFunction {
+    pub fn get_string(&self) -> String {
+        match self {
+            InternalFunction::Print => String::from("print"),
+            InternalFunction::Push => String::from("push"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct CustomFunction<F> {
+    pub f: F,
+}
+
+impl<F> Call for CustomFunction<F>
+where
+    F: Fn(&mut Interpreter, Vec<Value>) -> Result<Value, Box<dyn Error>>,
+{
+    fn call(&self, ctx: &mut Interpreter, args: Vec<Value>) -> Result<Value, Box<dyn Error>> {
+        (self.f)(ctx, args)
+    }
+}
+
+impl<F> Fun for CustomFunction<F>
+where
+    F: Fn(&mut Interpreter, Vec<Value>) -> Result<Value, Box<dyn Error>> + Clone + 'static,
+{
+    fn clone_box(&self) -> Box<dyn Fun> {
+        Box::new(self.clone())
+    }
 }
 
 pub trait Call {
     fn call(&self, ctx: &mut Interpreter, args: Vec<Value>) -> Result<Value, Box<dyn Error>>;
+}
+
+pub trait Fun: Call {
+    fn clone_box(&self) -> Box<dyn Fun>;
+}
+
+impl Fun for InternalFunction {
+    fn clone_box(&self) -> Box<dyn Fun> {
+        Box::new(self.clone())
+    }
+}
+
+impl Fun for Function {
+    fn clone_box(&self) -> Box<dyn Fun> {
+        Box::new(self.clone())
+    }
 }
 use InterpreterErrorKind::*;
 
 impl Call for InternalFunction {
     fn call(&self, ctx: &mut Interpreter, args: Vec<Value>) -> Result<Value, Box<dyn Error>> {
         match self {
-            InternalFunction::Push(name) => {
+            InternalFunction::Push => {
                 let vector_name = match &args[0] {
                     Value::String(name) => name,
                     _ => {
@@ -286,7 +337,7 @@ impl Call for InternalFunction {
                     ))),
                 }
             }
-            InternalFunction::Print(_) => {
+            InternalFunction::Print => {
                 for arg in args {
                     print!("{}", arg);
                 }
@@ -299,50 +350,43 @@ impl Call for InternalFunction {
 
 impl Call for Function {
     fn call(&self, ctx: &mut Interpreter, args: Vec<Value>) -> Result<Value, Box<dyn Error>> {
-        match ctx.functions.get(self.name.as_str()) {
-            Some(func) => {
-                let func = func.clone();
+        // Create a new scope for this function call
+        ctx.variables.push(HashMap::new());
 
-                // Create a new scope for this function call
-                ctx.variables.push(HashMap::new());
-
-                for (i, param) in func.parameters.iter().enumerate() {
-                    ctx.variables.last_mut().unwrap().insert(
-                        param.name.clone(),
-                        Variable {
-                            kind: param.kind.clone(),
-                            value: args[i].clone(),
-                        },
-                    );
-                }
-
-                let mut ret = None;
-
-                for statement in &func.body {
-                    ctx.interpret_statement(statement)?;
-                    ret = ctx.variables.last().unwrap().get("ret").cloned();
-                    if ret.is_some() {
-                        break;
-                    }
-                }
-
-                //remove local variables from the scope
-                for param in func.parameters.iter() {
-                    ctx.variables.last_mut().unwrap().remove(&param.name);
-                }
-
-                let ret = ret.unwrap_or(Variable {
-                    kind: VarKind::Mutable, // Or the default kind you wish to use
-                    value: Value::Void,
-                });
-
-                // Remove the function's scope
-                ctx.variables.pop();
-
-                Ok(ret.value)
-            }
-            None => Err(ctx.error(FunctionNotDeclared(self.name.to_string()))),
+        for (i, param) in self.parameters.iter().enumerate() {
+            ctx.variables.last_mut().unwrap().insert(
+                param.name.clone(),
+                Variable {
+                    kind: param.kind.clone(),
+                    value: args[i].clone(),
+                },
+            );
         }
+
+        let mut ret = None;
+
+        for statement in &self.body {
+            ctx.interpret_statement(statement)?;
+            ret = ctx.variables.last().unwrap().get("ret").cloned();
+            if ret.is_some() {
+                break;
+            }
+        }
+
+        //remove local variables from the scope
+        for param in self.parameters.iter() {
+            ctx.variables.last_mut().unwrap().remove(&param.name);
+        }
+
+        let ret = ret.unwrap_or(Variable {
+            kind: VarKind::Mutable, // Or the default kind you wish to use
+            value: Value::Void,
+        });
+
+        // Remove the function's scope
+        ctx.variables.pop();
+
+        Ok(ret.value)
     }
 }
 
