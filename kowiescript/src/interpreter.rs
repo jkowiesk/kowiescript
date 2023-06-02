@@ -42,7 +42,7 @@ impl Default for Interpreter {
         );
         inter.functions.insert(
             InternalFunction::Push.get_string(),
-            Box::new(InternalFunction::Print),
+            Box::new(InternalFunction::Push),
         );
         inter
     }
@@ -1065,7 +1065,7 @@ mod tests {
         let statements = parser.parse_program().unwrap();
 
         let mut interpreter = Interpreter::new();
-        interpreter.interpret_program(&statements);
+        interpreter.interpret_program(&statements).unwrap();
 
         assert_eq!(
             interpreter
