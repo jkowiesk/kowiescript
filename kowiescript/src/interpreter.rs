@@ -724,7 +724,7 @@ impl InterpreterError {
             ArithmeticOperatorErr(op) => format!("Cannot use arithmetic operator {:?}", op),
             ConstantReassignment(ident) => format!("Cannot reassign constant '{}'", ident),
             RangeExpressionExpected => "Cannot iterate over non-int range.".to_string(),
-            Err500 => "Unexpected behavior. Please contact the maintainers".to_string(),
+            UnexpectedBehavior => "Unexpected behavior. Please contact the maintainers".to_string(),
         };
 
         InterpreterError { description, line }

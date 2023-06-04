@@ -1,7 +1,4 @@
-use std::{
-    error::Error,
-    io::{BufRead, Write},
-};
+use std::{error::Error, io::BufRead};
 
 use crate::interpreter::InterpreterErrorKind;
 use interpreter::Interpreter;

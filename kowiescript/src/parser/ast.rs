@@ -1,14 +1,13 @@
 use std::{
     collections::HashMap,
     error::Error,
-    fmt::{self, format},
-    io::{self, BufRead},
+    fmt::{self},
     ops::{Add, Div, Mul, Not, Rem, Sub},
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::interpreter::{Interpreter, InterpreterError, InterpreterErrorKind, Variable};
+use crate::interpreter::{Interpreter, InterpreterErrorKind, Variable};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum VarKind {
