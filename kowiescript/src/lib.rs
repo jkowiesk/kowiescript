@@ -82,40 +82,43 @@ pub fn interpret_cli() -> Result<(), String> {
             },
         },
     );
-    let stdin = std::io::stdin();
-    let input = stdin.lock();
-    let mut lines = input.lines();
+    let mut rl = rustyline::DefaultEditor::new().unwrap();
 
     loop {
-        print!("> ");
-        std::io::stdout().flush().unwrap();
-        if let Some(Ok(line)) = lines.next() {
-            if line.trim() == "exit" {
+        let readline = rl.readline("> ");
+        match readline {
+            Ok(line) => {
+                if line.trim() == "exit" {
+                    break;
+                }
+
+                let mut parser = Parser::new(Input::String(line.clone()));
+                let result = parser.parse_program();
+
+                let ast = match result {
+                    Ok(ast) => ast,
+                    Err(err) => {
+                        eprintln!("{}", err);
+                        continue;
+                    }
+                };
+
+                if line.contains("input") {
+                    let raw_line = rl.readline("").unwrap();
+                    interpreter.insert_input(raw_line);
+                }
+
+                let result = interpreter.interpret_program(&ast);
+                match result {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err);
+                    }
+                }
+            }
+            Err(err) => {
+                eprintln!("Error: {}", err);
                 break;
-            }
-
-            let mut parser = Parser::new(Input::String(line.clone()));
-            let result = parser.parse_program();
-
-            let ast = match result {
-                Ok(ast) => ast,
-                Err(err) => {
-                    eprintln!("{}", err);
-                    continue;
-                }
-            };
-
-            if line.contains("input") {
-                let raw_line = lines.next().unwrap().unwrap();
-                interpreter.insert_input(raw_line);
-            }
-
-            let result = interpreter.interpret_program(&ast);
-            match result {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err);
-                }
             }
         }
     }
