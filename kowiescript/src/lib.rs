@@ -33,6 +33,7 @@ pub fn run_program(input: String) -> Result<String, String> {
         CustomFunction {
             f: |ctx: &mut Interpreter, args: Vec<Value>| -> Result<Value, Box<dyn Error>> {
                 ctx.output.push_str(args[0].to_string().as_str());
+                ctx.output.push('\n');
                 Ok(Value::Void)
             },
         },
