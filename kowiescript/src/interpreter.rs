@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, fmt, vec};
+use std::{collections::HashMap, error::Error, fmt, io, vec};
 
 use crate::{
     parser::ast::{ArithmeticOperator, *},
@@ -11,10 +11,13 @@ pub struct Variable {
     pub value: Value,
 }
 
+type LoopCtx = Vec<Option<SubLoopKind>>;
+
 pub struct Interpreter {
     pub variables: Vec<HashMap<String, Variable>>,
     pub functions: HashMap<String, Box<dyn Fun>>,
     pub lines: Vec<usize>,
+    pub loop_ctx: LoopCtx,
 }
 
 impl Clone for Interpreter {
@@ -27,6 +30,7 @@ impl Clone for Interpreter {
                 .map(|(k, v)| (k.clone(), v.clone_box()))
                 .collect(),
             lines: self.lines.clone(),
+            loop_ctx: self.loop_ctx.clone(),
         }
     }
 }
@@ -54,6 +58,7 @@ impl Interpreter {
             variables: vec![HashMap::new()],
             functions: HashMap::new(),
             lines: Vec::new(),
+            loop_ctx: Vec::new(),
         }
     }
 
@@ -69,6 +74,11 @@ impl Interpreter {
         &mut self,
         statement: &SourceStatement,
     ) -> Result<(), Box<dyn Error>> {
+        if let Some(kind) = self.loop_ctx.last() {
+            if kind.is_some() {
+                return Ok(());
+            }
+        }
         self.lines.push(statement.line);
         match &statement.stmt {
             Statement::VarDeclaration(var_declaration) => {
@@ -98,7 +108,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn inject_iternal_function(
+    pub fn inject_internal_function(
         &mut self,
         name: String,
         func: CustomFunction<
@@ -217,6 +227,7 @@ impl Interpreter {
 
     fn interpret_for_loop(&mut self, for_loop: &ForLoop) -> Result<(), Box<dyn Error>> {
         let iterable = self.evaluate_iterator_expression(&for_loop.iterator)?;
+        self.loop_ctx.push(None);
 
         'outer: for value in iterable {
             self.variables.last_mut().unwrap().insert(
@@ -227,37 +238,49 @@ impl Interpreter {
                 },
             );
             for statement in &for_loop.body {
+                if let Some(Some(kind)) = self.loop_ctx.last() {
+                    match kind {
+                        SubLoopKind::End => {
+                            break 'outer;
+                        }
+                        SubLoopKind::Next => {
+                            let ctx = self.loop_ctx.last_mut().unwrap();
+                            *ctx = None;
+                            break;
+                        }
+                    }
+                }
                 match &statement.stmt {
                     Statement::SubLoop(sub_loop) => match sub_loop.kind {
                         SubLoopKind::End => {
-                            self.variables
-                                .last_mut()
-                                .unwrap()
-                                .remove(&for_loop.iter_var);
                             break 'outer;
                         }
-                        SubLoopKind::Next => break,
+                        SubLoopKind::Next => {
+                            let ctx = self.loop_ctx.last_mut().unwrap();
+                            *ctx = None;
+                            break;
+                        }
                     },
                     _ => {
                         self.interpret_statement(statement)?;
                     }
                 }
             }
-
-            self.variables
-                .last_mut()
-                .unwrap()
-                .remove(&for_loop.iter_var);
         }
-
+        self.variables
+            .last_mut()
+            .unwrap()
+            .remove(&for_loop.iter_var);
+        self.loop_ctx.push(None);
         Ok(())
     }
 
     fn interpret_sub_loop(&mut self, sub_loop: &SubLoop) -> Result<(), Box<dyn Error>> {
-        match sub_loop.kind {
-            SubLoopKind::End => Ok(()),
-            SubLoopKind::Next => Ok(()),
+        if !self.loop_ctx.is_empty() {
+            let ctx = self.loop_ctx.last_mut().unwrap();
+            *ctx = Some(sub_loop.kind.clone());
         }
+        Ok(())
     }
 
     fn evaluate_expression(&mut self, expression: &Expression) -> Result<Value, Box<dyn Error>> {
@@ -337,18 +360,8 @@ impl Interpreter {
             let term_value = self.evaluate_term(term)?;
 
             result = match op {
-                ArithmeticOperator::Add => match result + term_value {
-                    Ok(val) => val,
-                    Err(msg) => {
-                        return Err(self.error(Error(msg)));
-                    }
-                },
-                ArithmeticOperator::Subtract => match result - term_value {
-                    Ok(val) => val,
-                    Err(msg) => {
-                        return Err(self.error(Error(msg)));
-                    }
-                },
+                ArithmeticOperator::Add => self.evaluate_operation(result + term_value)?,
+                ArithmeticOperator::Subtract => self.evaluate_operation(result - term_value)?,
                 _ => Err(self.error(ArithmeticOperatorErr(op.clone())))?,
             };
         }
@@ -367,24 +380,12 @@ impl Interpreter {
             let conversion_value = self.evaluate_conversion(conversion)?;
 
             result = match op {
-                ArithmeticOperator::Multiply => match result * conversion_value {
-                    Ok(val) => val,
-                    Err(msg) => {
-                        return Err(self.error(Error(msg)));
-                    }
-                },
-                ArithmeticOperator::Divide => match result / conversion_value {
-                    Ok(val) => val,
-                    Err(msg) => {
-                        return Err(self.error(Error(msg)));
-                    }
-                },
-                ArithmeticOperator::Modulo => match result % conversion_value {
-                    Ok(val) => val,
-                    Err(msg) => {
-                        return Err(self.error(Error(msg)));
-                    }
-                },
+                ArithmeticOperator::Multiply => {
+                    self.evaluate_operation(result * conversion_value)?
+                }
+
+                ArithmeticOperator::Divide => self.evaluate_operation(result / conversion_value)?,
+                ArithmeticOperator::Modulo => self.evaluate_operation(result % conversion_value)?,
                 _ => Err(self.error(ArithmeticOperatorErr(op.clone())))?,
             };
         }
@@ -406,7 +407,7 @@ impl Interpreter {
         let value = self.evaluate_factor(&inversion.value)?;
 
         if inversion.negated {
-            self.negate_value(value)
+            self.evaluate_operation(!value)
         } else {
             Ok(value) // No negation, return the value as is
         }
@@ -572,6 +573,12 @@ impl Interpreter {
                     if let Some(var) = scope.get(ident) {
                         match &var.value {
                             Value::Vector(values) => return Ok(values.clone()),
+                            Value::String(string) => {
+                                return Ok(string
+                                    .chars()
+                                    .map(|c| Value::String(c.to_string()))
+                                    .collect())
+                            }
                             _ => {
                                 return Err(
                                     self.error(InterpreterErrorKind::RangeExpressionExpected)
@@ -601,6 +608,16 @@ impl Interpreter {
                 }
             }
         }
+    }
+
+    pub fn handle_internal_input(
+        &mut self,
+        lines: &mut std::io::Lines<io::StdinLock>,
+    ) -> io::Result<()> {
+        if let Some(Ok(line)) = lines.next() {
+            println!("Input function received: {}", line);
+        }
+        Ok(())
     }
 
     fn compare_values<F>(
@@ -653,19 +670,28 @@ impl Interpreter {
         })
     }
 
-    fn negate_value(&self, value: Value) -> Result<Value, Box<dyn Error>> {
-        match value {
-            Value::Int(int) => Ok(Value::Int(-int)),
-            Value::Float(float) => Ok(Value::Float(-float)),
-            Value::String(string) => Ok(Value::String(string)),
-            Value::Bool(bool) => Ok(Value::Bool(!bool)),
-            Value::Void => Err(self.error(Error("Cannot negate void".to_string()))),
-            Value::Vector(_) => Err(self.error(Error("Cannot negate vector".to_string()))),
+    fn evaluate_operation(&self, result: Result<Value, String>) -> Result<Value, Box<dyn Error>> {
+        match result {
+            Ok(res) => Ok(res),
+            Err(msg) => Err(self.error(Error(msg))),
         }
     }
 
     pub fn error(&self, kind: InterpreterErrorKind) -> Box<dyn Error> {
         InterpreterError::boxed(*self.lines.last().unwrap(), kind)
+    }
+
+    pub fn insert_input(&mut self, line: String) {
+        // it puts raw line into the variables
+        // used for input function
+
+        self.variables.last_mut().unwrap().insert(
+            "input".to_string(),
+            Variable {
+                kind: VarKind::Constant,
+                value: Value::String(line),
+            },
+        );
     }
 }
 
@@ -677,6 +703,7 @@ pub enum InterpreterErrorKind {
     RangeExpressionExpected,
     ArithmeticOperatorErr(ArithmeticOperator),
     ConstantReassignment(String),
+    UnexpectedBehavior,
 }
 
 #[derive(Debug)]
@@ -697,6 +724,7 @@ impl InterpreterError {
             ArithmeticOperatorErr(op) => format!("Cannot use arithmetic operator {:?}", op),
             ConstantReassignment(ident) => format!("Cannot reassign constant '{}'", ident),
             RangeExpressionExpected => "Cannot iterate over non-int range.".to_string(),
+            Err500 => "Unexpected behavior. Please contact the maintainers".to_string(),
         };
 
         InterpreterError { description, line }
@@ -721,10 +749,6 @@ impl Error for InterpreterError {
     fn description(&self) -> &str {
         &self.description
     }
-}
-
-fn dev_print(ctx: &mut Interpreter, args: Vec<Value>) -> Result<Value, Box<dyn Error>> {
-    Ok(Value::Void)
 }
 
 mod tests {
@@ -779,7 +803,7 @@ mod tests {
     }
 
     #[test]
-    fn test_conjuction_evaluete() {
+    fn test_conjunction_evaluate() {
         let mut parser = Parser::new(Input::String("let a = 2 == 2 and 3 == 1;".to_string()));
         let statement = parser.parse_statement().unwrap();
 
@@ -861,12 +885,33 @@ mod tests {
         let statements = parser.parse_program().unwrap();
 
         let mut interpreter = Interpreter::new();
-        interpreter.inject_iternal_function("print".to_string(), CustomFunction { f: dev_print });
+        interpreter.inject_internal_function(
+            "print".to_string(),
+            CustomFunction {
+                f: |ctx: &mut Interpreter, args: Vec<Value>| -> Result<Value, Box<dyn Error>> {
+                    ctx.variables.last_mut().unwrap().insert(
+                        "print".to_string(),
+                        Variable {
+                            kind: VarKind::Constant,
+                            value: args[0].clone(),
+                        },
+                    );
+                    Ok(Value::Void)
+                },
+            },
+        );
 
-        match interpreter.interpret_statement(&statements[0]) {
-            Ok(_) => {}
-            Err(err) => panic!("Error: {}", err),
-        }
+        interpreter.interpret_statement(&statements[0]).unwrap();
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("print")
+                .unwrap()
+                .value,
+            Value::Int(3)
+        );
     }
 
     #[test]
@@ -891,6 +936,50 @@ mod tests {
                 .unwrap()
                 .value,
             Value::Int(4)
+        );
+    }
+
+    #[test]
+    fn test_for_loop_next() {
+        let mut parser = Parser::new(Input::String(
+            "let a = 0; for i in 1 to 3 {if (i == 2) {next;} a = a + 1;}".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_statement(&statements[0]).unwrap();
+        interpreter.interpret_statement(&statements[1]).unwrap();
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(2)
+        );
+    }
+
+    #[test]
+    fn test_for_loop_end() {
+        let mut parser = Parser::new(Input::String(
+            "let a = 0; for i in 1 to 3 {if (i == 2) {end;} a = a + 1;}".to_string(),
+        ));
+        let statements = parser.parse_program().unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.interpret_statement(&statements[0]).unwrap();
+        interpreter.interpret_statement(&statements[1]).unwrap();
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .value,
+            Value::Int(1)
         );
     }
 
@@ -929,7 +1018,15 @@ mod tests {
         let statements = parser.parse_program().unwrap();
 
         let mut interpreter = Interpreter::new();
-        interpreter.inject_iternal_function("print".to_string(), CustomFunction { f: dev_print });
+        interpreter.inject_internal_function(
+            "print".to_string(),
+            CustomFunction {
+                f: |_ctx: &mut Interpreter, args: Vec<Value>| -> Result<Value, Box<dyn Error>> {
+                    assert_eq!(args[0], Value::String("c".to_string()));
+                    Ok(Value::Void)
+                },
+            },
+        );
 
         match &statements[0].stmt {
             Statement::Function(function) => {
@@ -1160,8 +1257,33 @@ mod tests {
         let mut parser = Parser::new(Input::File("src/tests/data/pattern.ks".to_string()));
         let statements = parser.parse_program().unwrap();
 
-        let mut interpreter = Interpreter::default();
+        let mut interpreter = Interpreter::new();
+        interpreter.inject_internal_function(
+            "print".to_string(),
+            CustomFunction {
+                f: |ctx: &mut Interpreter, args: Vec<Value>| -> Result<Value, Box<dyn Error>> {
+                    ctx.variables.last_mut().unwrap().insert(
+                        "print".to_string(),
+                        Variable {
+                            kind: VarKind::Constant,
+                            value: args[0].clone(),
+                        },
+                    );
+                    Ok(Value::Void)
+                },
+            },
+        );
         interpreter.interpret_statement(&statements[0]).unwrap();
         interpreter.interpret_statement(&statements[1]).unwrap();
+        assert_eq!(
+            interpreter
+                .variables
+                .last()
+                .unwrap()
+                .get("print")
+                .unwrap()
+                .value,
+            Value::String("Not good at all :(".to_string())
+        );
     }
 }

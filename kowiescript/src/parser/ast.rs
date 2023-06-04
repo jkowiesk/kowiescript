@@ -2,7 +2,8 @@ use std::{
     collections::HashMap,
     error::Error,
     fmt::{self, format},
-    ops::{Add, Div, Mul, Rem, Sub},
+    io::{self, BufRead},
+    ops::{Add, Div, Mul, Not, Rem, Sub},
 };
 
 use serde::{Deserialize, Serialize};
@@ -449,6 +450,21 @@ impl Rem for Value {
             (Value::Int(left), Value::Int(right)) => Ok(Value::Int(left % right)),
             (Value::Float(left), Value::Float(right)) => Ok(Value::Float(left % right)),
             _ => Err(format!("Cannot modulo {:?} and {:?}", self, other)),
+        }
+    }
+}
+
+impl Not for Value {
+    type Output = Result<Self, String>;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Value::Int(int) => Ok(Value::Int(-int)),
+            Value::Float(float) => Ok(Value::Float(-float)),
+            Value::String(string) => Ok(Value::String(string)),
+            Value::Bool(bool) => Ok(Value::Bool(!bool)),
+            Value::Void => Err("Cannot negate void".to_string()),
+            Value::Vector(_) => Err("Cannot negate vector".to_string()),
         }
     }
 }

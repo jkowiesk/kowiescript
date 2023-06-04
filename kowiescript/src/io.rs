@@ -1,6 +1,5 @@
 // simple io handler for kowiesscript
 
-
 use std::fs::File;
 use std::io::{BufRead, BufReader, Cursor, Read, Result};
 use std::iter::Peekable;

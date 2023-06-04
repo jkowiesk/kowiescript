@@ -4,5 +4,5 @@ fn main() {
     println!("Welcome to kowiescript interpreter!");
     println!("|---------------------------------|");
     println!("Type 'exit' to exit the interpreter");
-    kowiescript::interpret().unwrap();
+    kowiescript::interpret_cli().unwrap();
 }

@@ -31,7 +31,7 @@ loop_substatement      = "end;"
                       | "next;"
 
 
-iterator_expression   = vector | identifier | range_expression | function_call;
+iterator_expression   = vector | identifier | range_expression;
 range_expression      = range_factor "to" range_factor;
 when_expression       = simple_expression { "either" simple_expression };
 expression            = conjuction { "or" conjuction };

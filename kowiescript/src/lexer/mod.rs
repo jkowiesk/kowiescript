@@ -447,6 +447,14 @@ mod tests {
     }
 
     #[test]
+    fn test_special_characters_string() {
+        let mut lexer = Lexer::new(Input::String(String::from("\"\n\"")));
+        let tokens: Vec<Token> = tokenize(&mut lexer).unwrap();
+
+        assert_eq!(tokens, vec![Token::String("\n".to_string()), Token::EOF]);
+    }
+
+    #[test]
     fn test_comments() {
         let string = String::from("// this is a comment");
         let mut lexer = Lexer::new(Input::String(string));
