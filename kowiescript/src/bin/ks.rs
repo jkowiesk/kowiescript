@@ -9,7 +9,7 @@ fn main() {
 
     let filename = &args[1];
     let input = Input::File(filename.clone());
-    if let Err(err) = kowiescript::run_program(input) {
+    if let Err(err) = kowiescript::run_program_cli(input) {
         eprintln!("{}", err);
         std::process::exit(1);
     }

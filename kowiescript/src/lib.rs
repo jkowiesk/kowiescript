@@ -17,7 +17,35 @@ mod parser;
 
 pub type Program = Vec<SourceStatement>;
 
-pub fn run_program(input: Input) -> Result<(), String> {
+pub fn run_program_wasm(input: String) -> Result<String, String> {
+    let input = Input::String(input);
+
+    let mut parser = Parser::new(input);
+    let ast = parser.parse_program();
+
+    let program = match ast {
+        Ok(program) => program,
+        Err(err) => return Err(err.to_string()),
+    };
+
+    let mut interpreter = Interpreter::default_without_io();
+    interpreter.inject_internal_function(
+        "print".to_string(),
+        CustomFunction {
+            f: |ctx: &mut Interpreter, args: Vec<Value>| -> Result<Value, Box<dyn Error>> {
+                ctx.output.push_str(args[0].to_string().as_str());
+                Ok(Value::Void)
+            },
+        },
+    );
+
+    match interpreter.interpret_program(&program) {
+        Ok(_) => Ok(interpreter.output),
+        Err(err) => Err(err.to_string()),
+    }
+}
+
+pub fn run_program_cli(input: Input) -> Result<(), String> {
     let mut parser = parser::Parser::new(input);
     let ast = parser.parse_program();
 

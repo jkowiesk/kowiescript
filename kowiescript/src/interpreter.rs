@@ -18,6 +18,7 @@ pub struct Interpreter {
     pub functions: HashMap<String, Box<dyn Fun>>,
     pub lines: Vec<usize>,
     pub loop_ctx: LoopCtx,
+    pub output: String,
 }
 
 impl Clone for Interpreter {
@@ -31,6 +32,7 @@ impl Clone for Interpreter {
                 .collect(),
             lines: self.lines.clone(),
             loop_ctx: self.loop_ctx.clone(),
+            output: self.output.clone(),
         }
     }
 }
@@ -41,16 +43,16 @@ impl Default for Interpreter {
     fn default() -> Self {
         let mut inter = Self::new();
         inter.functions.insert(
-            InternalFunction::Print.get_string(),
-            Box::new(InternalFunction::Print),
-        );
-        inter.functions.insert(
             InternalFunction::Push.get_string(),
             Box::new(InternalFunction::Push),
         );
         inter.functions.insert(
             InternalFunction::Remove.get_string(),
             Box::new(InternalFunction::Remove),
+        );
+        inter.functions.insert(
+            InternalFunction::Print.get_string(),
+            Box::new(InternalFunction::Print),
         );
         inter
     }
@@ -63,7 +65,21 @@ impl Interpreter {
             functions: HashMap::new(),
             lines: Vec::new(),
             loop_ctx: Vec::new(),
+            output: String::new(),
         }
+    }
+
+    pub fn default_without_io() -> Self {
+        let mut inter = Self::new();
+        inter.functions.insert(
+            InternalFunction::Push.get_string(),
+            Box::new(InternalFunction::Push),
+        );
+        inter.functions.insert(
+            InternalFunction::Remove.get_string(),
+            Box::new(InternalFunction::Remove),
+        );
+        inter
     }
 
     pub fn interpret_program(&mut self, program: &Program) -> Result<(), Box<dyn Error>> {
