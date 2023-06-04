@@ -48,6 +48,10 @@ impl Default for Interpreter {
             InternalFunction::Push.get_string(),
             Box::new(InternalFunction::Push),
         );
+        inter.functions.insert(
+            InternalFunction::Remove.get_string(),
+            Box::new(InternalFunction::Remove),
+        );
         inter
     }
 }
@@ -295,7 +299,7 @@ impl Interpreter {
                     result = match result {
                         Value::Bool(false) => Value::Bool(false),
                         Value::Bool(true) => conjunction_value,
-                        _ => unimplemented!("Conjunction evaluation not implemented."),
+                        _ => Err(self.error(InterpreterErrorKind::UnexpectedBehavior))?,
                     };
                 }
                 Ok(result)
@@ -315,7 +319,7 @@ impl Interpreter {
                     result = match result {
                         Value::Bool(true) => relation_value,
                         Value::Bool(false) => Value::Bool(false),
-                        _ => unimplemented!("Relation evaluation not implemented."),
+                        _ => Err(self.error(InterpreterErrorKind::UnexpectedBehavior))?,
                     };
                 }
                 Ok(result)
@@ -354,9 +358,10 @@ impl Interpreter {
         let mut term_iter = simple_expression.terms.iter().skip(1).peekable();
 
         for op in &simple_expression.ops {
-            let term = term_iter
-                .next()
-                .expect("Mismatched number of terms and operators");
+            let term = match term_iter.next() {
+                Some(term) => term,
+                None => Err(self.error(InterpreterErrorKind::UnexpectedBehavior))?,
+            };
             let term_value = self.evaluate_term(term)?;
 
             result = match op {
@@ -374,9 +379,10 @@ impl Interpreter {
         let mut conversion_iter = term.conversions.iter().skip(1).peekable();
 
         for op in &term.ops {
-            let conversion = conversion_iter
-                .next()
-                .expect("Mismatched number of conversions and operators");
+            let conversion = match conversion_iter.next() {
+                Some(conversion) => conversion,
+                None => Err(self.error(InterpreterErrorKind::UnexpectedBehavior))?,
+            };
             let conversion_value = self.evaluate_conversion(conversion)?;
 
             result = match op {
@@ -654,8 +660,21 @@ impl Interpreter {
                 ConversionType::Bool => Value::Bool(float != 0.0),
             },
             Value::String(string) => match conversion_type {
-                ConversionType::Int => Value::Int(string.parse().unwrap()),
-                ConversionType::Float => Value::Float(string.parse().unwrap()),
+                ConversionType::Int => {
+                    if let Ok(int) = string.parse() {
+                        Value::Int(int)
+                    } else {
+                        return Err(self.error(Error("Cannot convert string to int".to_string())));
+                    }
+                }
+
+                ConversionType::Float => {
+                    if let Ok(float) = string.parse() {
+                        Value::Float(float)
+                    } else {
+                        return Err(self.error(Error("Cannot convert string to float".to_string())));
+                    }
+                }
                 ConversionType::String => Value::String(string),
                 ConversionType::Bool => Value::Bool(!string.is_empty()),
             },

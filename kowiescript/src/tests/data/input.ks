@@ -1,3 +1,7 @@
-print("Give number and I give you the rest of the division by 2:");
+fn sum(x, y) {
+    ret x + y;
+}
+
 let a = input();
-print(a % 2);
+let b = input();
+print(sum(a, b));

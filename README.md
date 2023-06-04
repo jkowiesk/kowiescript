@@ -17,47 +17,47 @@
 
 ```jsx
 fn test() {
-  print("test")
+  print("test");
   ret 2;
 }
 
-const b = 3
+const b = 3;
 
-const files = ["test1", "test2"]
+const files = ["test1", "test2"];
 
-let a = test()
-a = a + 1
+let a = test();
+a = a + 1;
 
 if a != 5  {
-  print("'a' is not a five")
+  print("'a' is not a five");
 }
 
 for file in files {
 	// do sth with file
-  if (file == "end") {
-  	end
+  if file == "end" {
+  	end;
   }
 
-  if (file == "skip") {
-  	next
+  if file == "skip" {
+  	next;
   }
 }
 
 for i in 1 to 10 {
-  print(i)
+  print(i);
 
 }
 
-let x = 5
+let x = 5;
 match x {
   when 1 then {
-    print("x is 1")
+    print("x is 1");
   }
   when 2 either 3 then {
-    print("x is 2 or 3")
+    print("x is 2 or 3");
   }
   default {
-    print("x is something  else")
+    print("x is something  else");
   }
 }
 
@@ -84,16 +84,17 @@ print(fib_number);
 Pattern Matching
 
 ```jsx
-let how = "well"
+let how = "awful";
+
 match how {
-  when "bad" either "awfull" then {
-  	print("Not good at all :(")
+  when "bad" either "awful" then {
+  	print("Not good at all :(");
   }
   when "well" then {
-  	print("Great success !!!")
+  	print("Great success !!!");
   }
   default {
-  	print("What ???")
+  	print("What ???");
   }
 }
 ```
@@ -102,25 +103,23 @@ match how {
 
 ```jsx
 fn starts_with_vowel(word) {
-  const first_leteter = word[0]
+  const first_letter = word[0];
   for vowel in ["a", "e", "i", "o", "u"] {
   		if first_letter == vowel {
-  			ret true
+  			ret true;
   		}
   }
-  ret false
+  ret false;
 }
 
-let words = ["apple", "cat", "dog", "egg", "fish", "sheep"]
-let vowel_words = []
+let words = ["apple", "cat", "dog", "egg", "fish", "sheep"];
+let vowel_words = [];
 
 for word in words {
   if starts_with_vowel(word) {
-    push(vowel_words, word)
+    push("vowel_words", word);
   }
 }
-
-print(vowel_words)
 ```
 
 # Semantyka
@@ -133,7 +132,7 @@ print(vowel_words)
 - **fn** - funkcja wykonuje określony blok kodu
 - **match** - patter matching
 - [**+**, **-**, **/**, __*__, **%**] **-** operacje arytmetyczne
-- [**and**, **or**, **not**, **<**, **≤**, **≥**, **>**, **==**, **≠**] - operacje logiczne
+- [**and**, **or**, **!**, **<**, **≤**, **≥**, **>**, **==**, **≠**] - operacje logiczne
 - **end** - natychmiastowe zakończenie pętli
 - **next** - przekazanie sterowanie do następnej iteracji
 
@@ -158,13 +157,14 @@ W języku jest możliwe rzutowanie prostych typów i stringa za pomocą operator
 ```jsx
 let a = 5
 let b = a as string
+let b = a as int
 let c = a as float
 let d = a as bool
 ```
 
 # Komentarze
 
-Jednolinijkowe zaczynające się od znaku ‘#’
+Jednolinijkowe zaczynające się od znaku ‘//’
 
 # Składnia (EBNF)
 
@@ -202,7 +202,7 @@ loop_substatement      = "end;"
                       | "next;"
 
 
-iterator_expression   = vector | identifier | range_expression | function_call;
+iterator_expression   = vector | identifier | range_expression;
 range_expression      = range_factor "to" range_factor;
 when_expression       = simple_expression { "either" simple_expression };
 expression            = conjuction { "or" conjuction };
@@ -300,10 +300,10 @@ Proste:
 - int
 - bool
 - float
+- string
 
 Złożone:
 
-- **String**
 - **Vector**
 
 # Obsługa błędów
@@ -324,7 +324,7 @@ if x > 0 {
 _Komunikat_:
 
 ```bash
-Syntax error at line 2: missing closing brace '{'
+Syntax error at line 1: missing closing brace '{'
 ```
 
 2. **Division by zero**
@@ -336,7 +336,7 @@ let x = 2 / 0;
 _Komunikat_:
 
 ```bash
-Division by zero at line 1: division by zero is not allowed
+Runtime error at line 1: division by zero is not allowed
 ```
 
 3. **Unknown identifier**
@@ -348,20 +348,7 @@ const a = b + 9;
 _Komunikat_:
 
 ```bash
-Unknown identifier error at line 1: identifier 'b' not defined
-```
-
-4. **Variable redeclaration**
-
-```jsx
-let a = 5;
-let a = 1;
-```
-
-_Komunikat_:
-
-```bash
-Variable redeclaration at line 2: variable ‘a’ is already declerated
+Runtime error at line 1: identifier 'b' not defined
 ```
 
 5. **Type mismatch**
@@ -374,7 +361,7 @@ let z = x + 5;
 _Komunikat:_
 
 ```bash
-Type mismatch at line 2: the types aren't the same
+Runtime error at line 2: Cannot add 'hello' and '5'
 ```
 
 6. **Impossible casting**
@@ -387,16 +374,21 @@ let z = x as int
 _Komunikat:_
 
 ```bash
-Impossible casting at line 2: type 'string' can't be casted to 'int'
+Runtime error at line 2: Cannot convert string to int
 ```
 
-# Sposób uruchomienia
+# Sposoby uruchomienia
 
-1. Napisać kod programu w pliku o rozszerzeniu \*_.ks_
-2. Uruchumienie skompilowanego interpretera za pomocą komendy:
+**1.** Interprertacja programu zapisanego w pliku o rozszerzeniu \*_.ks_
 
 ```bash
 ./ks plik.ks
+```
+
+**2.** Uruchomienie interpretera w CLI
+
+```bash
+./ks_interpreter
 ```
 
 3. Wejście podczas wykonwyania obsługiwany przez **stdin,** wynik zostanie przesłany do **stdout** (wyświetli się na terminale)
@@ -405,12 +397,12 @@ Impossible casting at line 2: type 'string' can't be casted to 'int'
 
 ```jsx
 fn sum(x, y) {
-    return x + y
+    ret x + y;
 }
 
-let a = input()
-let b = input()
-print(sum(a, b))
+let a = input();
+let b = input();
+print(sum(a, b));
 ```
 
 **Wejście**
@@ -428,9 +420,10 @@ print(sum(a, b))
 
 # Podział na komponenty
 
-- **Lexer** - pobiera ciąg znaków wejściowych i przetwarza go na listę tokenów zgodnie z zasadami gramatyki języka
+- **io** - odpowiedzialny za obsługę źródła (czy w postaci pliku czy stringa)
+- **Lexer** - jest odpowiedzialny za przetworzenie źródła (io::Input) na listę tokenów zgodną z zasadami gramatyki języka
 - **Parser** - przetwarza listę tokenów na abstrakcyjne drzewo składniowe (AST) na podstawie zasad gramatyki
-- **AST** - abstrakcyjne drzewo składniowe, reprezentujące strukturę składniową programu w sposób hierarchiczny. Każdy węzeł drzewa reprezentuje konkretny element składniowy języka, a jego child nodes reprezentują elementy składniowe zależne od niego.
+- **AST** - abstrakcyjne drzewo składniowe, reprezentujące strukturę składniową programu w sposób hierarchiczny. Każdy węzeł drzewa reprezentuje konkretny element składniowy języka.
 - **Interpreter** - główny komponent odpowiedzalny za nadzorowanie całego procesu. Jego głównym celem będzie wykonanie kodu źródłowego oraz zwrócenie wyniku. W razie błedu podczas wykonywania programu, zgłosi go użytkownikowi.
 
 # Opisy sposobu testowania

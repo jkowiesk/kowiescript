@@ -248,6 +248,7 @@ pub struct Vector {
 pub enum InternalFunction {
     Print,
     Push,
+    Remove,
 }
 
 impl InternalFunction {
@@ -255,6 +256,7 @@ impl InternalFunction {
         match self {
             InternalFunction::Print => String::from("print"),
             InternalFunction::Push => String::from("push"),
+            InternalFunction::Remove => String::from("remove"),
         }
     }
 }
@@ -337,6 +339,45 @@ impl Call for InternalFunction {
                     ))),
                 }
             }
+            InternalFunction::Remove => {
+                let vector_name = match &args[0] {
+                    Value::String(name) => name,
+                    _ => {
+                        return Err(
+                            ctx.error(Error(String::from("First argument must be a string")))
+                        );
+                    }
+                };
+                let vector = ctx.variables.last_mut().unwrap().get_mut(vector_name);
+                let vector = match vector {
+                    Some(vector) => vector,
+                    None => {
+                        return Err(ctx.error(VariableNotDeclared(vector_name.to_string())));
+                    }
+                };
+
+                let index = match &args[1] {
+                    Value::Int(index) => *index as usize,
+                    _ => {
+                        return Err(
+                            ctx.error(Error(String::from("Second argument must be an integer")))
+                        );
+                    }
+                };
+
+                match vector {
+                    Variable {
+                        kind: VarKind::Mutable,
+                        value: Value::Vector(vec),
+                    } => {
+                        vec.remove(index);
+                        Ok(Value::Void)
+                    }
+                    _ => Err(ctx.error(Error(
+                        "Second argument must be a valid vector element".to_string(),
+                    ))),
+                }
+            }
             InternalFunction::Print => {
                 for arg in args {
                     print!("{}", arg);
@@ -390,7 +431,7 @@ impl Call for Function {
     }
 }
 
-// impl traits
+// impl traits for Value
 
 impl Add for Value {
     type Output = Result<Self, String>;
