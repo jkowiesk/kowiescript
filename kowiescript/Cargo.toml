@@ -6,11 +6,6 @@ authors = ["Jakub Kowieski <jkowiesk@gmail.com>"]
 description = "My simple programing language written in rust"
 repository = "https://github.com/jkowiesk/kowiescript"
 
-
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-ron = "0.8"
-rustyline = "11.0.0"
 serde = { version = "1", features = ["derive"] }
+ron = "0.8"

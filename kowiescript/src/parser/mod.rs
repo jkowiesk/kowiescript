@@ -984,6 +984,7 @@ impl Error for ParserError {
 mod tests {
 
     use super::*;
+
     #[test]
     fn test_parse_statements() {
         let mut parser = Parser::new(Input::String("let a = 1 ;".to_string()));
