@@ -474,6 +474,9 @@ impl Div for Value {
     type Output = Result<Self, String>;
 
     fn div(self, other: Self) -> Self::Output {
+        if other == Value::Int(0) || other == Value::Float(0.0) {
+            return Err(format!("Cannot divide {:?} by zero", self));
+        }
         match (self.clone(), other.clone()) {
             (Value::Int(left), Value::Int(right)) => Ok(Value::Int(left / right)),
             (Value::Float(left), Value::Float(right)) => Ok(Value::Float(left / right)),
